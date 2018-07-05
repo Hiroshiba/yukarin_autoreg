@@ -1,0 +1,8 @@
+numpy
+cupy
+chainer
+librosa
+matplotlib
+chainerui
+tensorflow
+git+https://github.com/neka-nat/tensorboard-chainer
