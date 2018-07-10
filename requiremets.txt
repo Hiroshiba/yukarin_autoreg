@@ -1,5 +1,4 @@
 numpy
-cupy
 chainer
 librosa
 matplotlib
