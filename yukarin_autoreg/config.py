@@ -12,6 +12,7 @@ from yukarin_autoreg.utility.json_utility import JSONEncoder
 class DatasetConfig(NamedTuple):
     sampling_rate: int
     sampling_length: int
+    input_glob: str
     bit_size: int
     seed: int
     num_test: int
@@ -67,6 +68,7 @@ def create_from_json(s: Union[str, Path]):
         dataset=DatasetConfig(
             sampling_rate=d['dataset']['sampling_rate'],
             sampling_length=d['dataset']['sampling_length'],
+            input_glob=d['dataset']['input_glob'],
             bit_size=d['dataset']['bit_size'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
