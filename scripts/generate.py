@@ -1,5 +1,4 @@
 import argparse
-import multiprocessing
 import re
 from functools import partial
 from pathlib import Path
@@ -12,6 +11,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', '-md', type=Path)
 parser.add_argument('--model_iteration', '-mi', type=int)
 parser.add_argument('--model_config', '-mc', type=Path)
+parser.add_argument('--time_length', '-tl', type=int, default=1)
+parser.add_argument('--num_test', '-nt', type=int, default=5)
+parser.add_argument('--sampling_maximum', '-sm', action='store_true')
 parser.add_argument('--output_dir', '-o', type=Path, default='./output/')
 parser.add_argument('--gpu', type=int)
 arguments = parser.parse_args()
@@ -19,6 +21,9 @@ arguments = parser.parse_args()
 model_dir: Path = arguments.model_dir
 model_iteration: int = arguments.model_iteration
 model_config: Path = arguments.model_config
+time_length: int = arguments.time_length
+num_test: int = arguments.num_test
+sampling_maximum: bool = arguments.sampling_maximum
 output_dir: Path = arguments.output_dir
 gpu: int = arguments.gpu
 
@@ -45,7 +50,10 @@ def _get_predictor_model_path(model_dir: Path, iteration: int = None, prefix: st
 
 def process(path: Path, generator: Generator):
     try:
-        wave = generator.generate()
+        wave = generator.generate(
+            time_length=time_length,
+            sampling_maximum=sampling_maximum,
+        )
         wave.save(path)
     except:
         import traceback
@@ -64,14 +72,10 @@ def main():
     )
     print(f'Loaded generator "{model}"')
 
-    paths_test = [output / f'{name}.wav' for name in range(5)]
+    paths_test = [output / f'{name}.wav' for name in range(num_test)]
 
     process_partial = partial(process, generator=generator)
-    if gpu is None:
-        pool = multiprocessing.Pool()
-        pool.map(process_partial, paths_test)
-    else:
-        list(map(process_partial, paths_test))
+    list(map(process_partial, paths_test))
 
 
 if __name__ == '__main__':

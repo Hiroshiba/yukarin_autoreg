@@ -25,7 +25,7 @@ class Updater(chainer.training.StandardUpdater):
             target_coarse: numpy.ndarray,
             target_fine: numpy.ndarray,
     ):
-        out_c_array, out_f_array, hidden = self.predictor(c_array=input_coarse, t_array=input_fine)
+        out_c_array, out_f_array, hidden = self.predictor(c_array=input_coarse, f_array=input_fine)
 
         nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse)
         nll_fine = F.softmax_cross_entropy(out_f_array, target_fine)

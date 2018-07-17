@@ -21,36 +21,97 @@ class WaveRNN(chainer.Chain):
             self.I_coarse = L.Linear(2, 3 * self.split_size)
             self.I_fine = L.Linear(3, 3 * self.split_size)
 
-    def __call__(self, c_array, t_array, hidden=None):
+    def __call__(self, c_array, f_array, hidden=None):
         """
-        :param c_array: float -1 ~ +1 (batch_size, N)
-        :param t_array: float -1 ~ +1 (batch_size, N)
+        :param c_array: float -1 ~ +1 (batch_size, N+1)
+        :param f_array: float -1 ~ +1 (batch_size, N)
         :param hidden: float (batch_size, hidden_size)
         :return:
             out_c_array: float (batch_size, half_bins, N)
             out_f_array: float (batch_size, half_bins, N)
             hidden: float (batch_size, hidden_size)
         """
-        batch_size = len(c_array)
-        if hidden is None:
-            hidden = self.get_init_hidden(batch_size=batch_size)
-
-        out_c_array = []
-        out_f_array = []
-        for prev_c, prev_t, curr_c in zip(
-                F.separate(c_array[:, :-1], axis=1),
-                F.separate(t_array[:, :], axis=1),
-                F.separate(c_array[:, 1:], axis=1),
-        ):
-            out_c, out_f, hidden = self.forward(prev_c=prev_c, prev_f=prev_t, curr_c=curr_c, prev_hidden=hidden)
-            out_c_array.append(out_c)
-            out_f_array.append(out_f)
-
-        out_c_array = F.stack(out_c_array, axis=2)
-        out_f_array = F.stack(out_f_array, axis=2)
+        out_c_array, out_f_array, hidden = self.forward(
+            c_array=c_array[:, :-1],
+            f_array=f_array[:, :],
+            curr_c_array=c_array[:, 1:],
+            prev_hidden=hidden,
+        )
         return out_c_array, out_f_array, hidden
 
-    def forward(self, prev_c, prev_f, prev_hidden=None, curr_c=None):
+    def forward(self, c_array, f_array, curr_c_array, prev_hidden=None):
+        """
+        c: coarse
+        f: fine
+        :param c_array: float -1 ~ +1 (batch_size, N)
+        :param f_array: float -1 ~ +1 (batch_size, N)
+        :param curr_c_array: float -1 ~ +1 (batch_size, N)
+        :param prev_hidden: float (batch_size, hidden_size)
+        :return:
+            out_c_array: float (batch_size, half_bins, N)
+            out_f_array: float (batch_size, half_bins, N)
+            hidden: float (batch_size, hidden_size)
+        """
+        assert c_array.shape == f_array.shape == curr_c_array.shape
+
+        batch_size = c_array.shape[0]
+        length = c_array.shape[1]  # N
+        if prev_hidden is None:
+            prev_hidden = self.get_init_hidden(batch_size=batch_size)
+
+        # batch
+        c_array = F.reshape(c_array, shape=(batch_size * length,))  # shape: (batch_size * N)
+        f_array = F.reshape(f_array, shape=(batch_size * length,))  # shape: (batch_size * N)
+        curr_c_array = F.reshape(curr_c_array, shape=(batch_size * length,))  # shape: (batch_size * N)
+
+        # Project the input and split
+        coarse_input_proj = self.I_coarse(F.stack((c_array, f_array), axis=1))  # shape: (batch_size * N, ?)
+        fine_input_proj = self.I_fine(F.stack((c_array, f_array, curr_c_array), axis=1))  # shape: (batch_size * N, ?)
+
+        coarse_input_proj = F.reshape(coarse_input_proj, shape=(batch_size, length, -1))  # shape: (batch_size, N, ?)
+        fine_input_proj = F.reshape(fine_input_proj, shape=(batch_size, length, -1))  # shape: (batch_size, N, ?)
+
+        hidden = prev_hidden
+        hidden_list = []
+        for cip, fip in zip(F.separate(coarse_input_proj, axis=1), F.separate(fine_input_proj, axis=1)):
+            I_coarse_u, I_coarse_r, I_coarse_e = F.split_axis(cip, 3, axis=1)
+            I_fine_u, I_fine_r, I_fine_e = F.split_axis(fip, 3, axis=1)
+            Iu = F.concat((I_coarse_u, I_fine_u), axis=1)
+            Ir = F.concat((I_coarse_r, I_fine_r), axis=1)
+            Ie = F.concat((I_coarse_e, I_fine_e), axis=1)
+
+            # Main matmul - the projection is split 6 ways
+            # for the coarse/fine gates
+            R_hidden = self.R(hidden)
+            R_coarse_u, R_coarse_r, R_coarse_e, \
+            R_fine_u, R_fine_r, R_fine_e = F.split_axis(R_hidden, 6, axis=1)
+            Ru = F.concat((R_coarse_u, R_fine_u), axis=1)
+            Rr = F.concat((R_coarse_r, R_fine_r), axis=1)
+            Re = F.concat((R_coarse_e, R_fine_e), axis=1)
+
+            # Compute the first round of gates: coarse
+            u = F.sigmoid(Ru + Iu)
+            r = F.sigmoid(Rr + Ir)
+            e = F.tanh(r * Re + Ie)
+            hidden = u * hidden + (1 - u) * e
+
+            hidden_list.append(hidden)
+
+        hidden = F.stack(hidden_list, axis=1)  # shape: (batch_size, N, ?)
+        hidden = F.reshape(hidden, shape=(batch_size * length, -1))  # shape: (batch_size * N, ?)
+        hidden_coarse, hidden_fine = F.split_axis(hidden, 2, axis=1)  # shape: (batch_size * N, ?)
+
+        # Compute outputs
+        out_c_array = self.O2(F.relu(self.O1(hidden_coarse)))  # shape: (batch_size * N, ?)
+        out_f_array = self.O4(F.relu(self.O3(hidden_fine)))  # shape: (batch_size * N, ?)
+        out_c_array = F.reshape(out_c_array, shape=(batch_size, length, -1))  # shape: (batch_size, N, ?)
+        out_f_array = F.reshape(out_f_array, shape=(batch_size, length, -1))  # shape: (batch_size, N, ?)
+        out_c_array = F.transpose(out_c_array, axes=(0, 2, 1))  # shape: (batch_size, ?, N)
+        out_f_array = F.transpose(out_f_array, axes=(0, 2, 1))  # shape: (batch_size, ?, N)
+
+        return out_c_array, out_f_array, hidden
+
+    def forward_one(self, prev_c, prev_f, prev_hidden=None, curr_c=None):
         """
         c: coarse
         f: fine
@@ -58,14 +119,11 @@ class WaveRNN(chainer.Chain):
         :param prev_f: float -1 ~ +1 (batch_size, )
         :param prev_hidden: float (batch_size, hidden_size)
         :param curr_c: float -1 ~ +1 (batch_size, )
-        :param generate: boolean
         :return:
             out_c: float (batch_size, half_bins)
             out_f: float (batch_size, half_bins)
             hidden: float (batch_size, hidden_size)
         """
-        xp = self.xp
-
         batch_size = len(prev_c)
         if prev_hidden is None:
             prev_hidden = self.get_init_hidden(batch_size=batch_size)

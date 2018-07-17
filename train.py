@@ -30,9 +30,10 @@ arguments.output.mkdir(exist_ok=True)
 config.save_as_json((arguments.output / 'config.json').absolute())
 
 # model
-if config.train.gpu >= 0:
-    cuda.get_device_from_id(config.train.gpu).use()
 predictor = create_predictor(config.model)
+if config.train.gpu >= 0:
+    predictor.to_gpu(config.train.gpu)
+    cuda.get_device_from_id(config.train.gpu).use()
 
 # dataset
 dataset = create_dataset(config.dataset)
@@ -88,6 +89,7 @@ trainer.extend(ext, name='train', trigger=trigger_log)
 ext = extensions.snapshot_object(predictor, filename='main_{.updater.iteration}.npz')
 trainer.extend(ext, trigger=trigger_snapshot)
 
+trainer.extend(extensions.observe_lr(), trigger=trigger_log)
 trainer.extend(extensions.LogReport(trigger=trigger_log))
 trainer.extend(TensorBoardReport(writer=tb_writer), trigger=trigger_log)
 

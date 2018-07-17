@@ -27,18 +27,17 @@ class Generator(object):
             model.to_gpu(self.gpu)
             cuda.get_device_from_id(self.gpu).use()
 
-    def generate(self):
+    def generate(self, time_length: int, sampling_maximum: bool):
         w_list = []
 
         c = f = self.model.xp.zeros((1,), dtype=np.float32)
         hidden = None
-        for _ in range(self.config.dataset.sampling_rate * 1):
-            print(_)
+        for _ in range(self.config.dataset.sampling_rate * time_length):
             with chainer.using_config('train', False):
-                c, f, hidden = self.model.forward(prev_c=c, prev_f=f, prev_hidden=hidden)
+                c, f, hidden = self.model.forward_one(prev_c=c, prev_f=f, prev_hidden=hidden)
 
-            c = self.model.sampling(c)
-            f = self.model.sampling(f)
+            c = self.model.sampling(c, maximum=sampling_maximum)
+            f = self.model.sampling(f, maximum=sampling_maximum)
 
             w = decode_16bit(
                 coarse=chainer.cuda.to_cpu((c[0] + 1) * 255 // 2),
