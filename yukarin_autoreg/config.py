@@ -21,6 +21,7 @@ class DatasetConfig(NamedTuple):
 class ModelConfig(NamedTuple):
     hidden_size: int
     bit_size: int
+    use_original_model: bool
 
 
 class LossConfig(NamedTuple):
@@ -76,6 +77,7 @@ def create_from_json(s: Union[str, Path]):
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
+            use_original_model=d['model']['use_original_model'],
         ),
         loss=LossConfig(
         ),
@@ -95,4 +97,5 @@ def create_from_json(s: Union[str, Path]):
 
 
 def backward_compatible(d: Dict):
-    pass
+    if 'use_original_model' not in d['model']:
+        d['model']['use_original_model'] = False

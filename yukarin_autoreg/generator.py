@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import chainer
-from chainer import cuda
 import numpy as np
+from chainer import cuda
 
 from yukarin_autoreg.config import Config
 from yukarin_autoreg.dataset import decode_16bit
@@ -34,7 +34,7 @@ class Generator(object):
         hidden = None
         for _ in range(self.config.dataset.sampling_rate * time_length):
             with chainer.using_config('train', False):
-                c, f, hidden = self.model.forward_one(prev_c=c, prev_f=f, prev_hidden=hidden)
+                c, f, hidden = self.model.forward_one(prev_c=c, prev_f=f, hidden=hidden)
 
             c = self.model.sampling(c, maximum=sampling_maximum)
             f = self.model.sampling(f, maximum=sampling_maximum)

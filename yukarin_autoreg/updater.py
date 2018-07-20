@@ -3,14 +3,14 @@ import chainer.functions as F
 import numpy
 
 from yukarin_autoreg.config import LossConfig
-from yukarin_autoreg.model import WaveRNN
+from yukarin_autoreg.model import BaseWaveRNN
 
 
 class Updater(chainer.training.StandardUpdater):
     def __init__(
             self,
             loss_config: LossConfig,
-            predictor: WaveRNN,
+            predictor: BaseWaveRNN,
             *args,
             **kwargs,
     ) -> None:
