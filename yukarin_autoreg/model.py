@@ -326,6 +326,98 @@ class OriginalWaveRNN(BaseWaveRNN):
         return out_c, out_f, hidden
 
 
+class _GRU(L.StatelessGRU):
+    def __call__(self, h, x):
+        r = F.sigmoid(self.W_r(x) + self.U_r(h))
+        z = F.sigmoid(self.W_z(x) + self.U_z(h))
+        h_bar = F.tanh(self.W(x) + self.U(r * h))
+        h_new = F.linear_interpolate(z, h, h_bar)  # swap
+        return h_new
+
+
+class OriginalWaveRNNwoNStep(BaseWaveRNN):
+    def __init__(self, model: OriginalWaveRNN) -> None:
+        super().__init__(model)
+
+        self.half_hidden_size = model.half_hidden_size
+        self.half_bins = model.half_bins
+        with self.init_scope():
+            self.model = model
+
+            self.R_coarse = _GRU(in_size=2, out_size=self.half_hidden_size)
+            self.R_fine = _GRU(in_size=3, out_size=self.half_hidden_size)
+
+        self.R_coarse.W_r.W.copydata(model.R_coarse.ws[0][0])
+        self.R_coarse.W_z.W.copydata(model.R_coarse.ws[0][1])
+        self.R_coarse.W.W.copydata(model.R_coarse.ws[0][2])
+        self.R_coarse.U_r.W.copydata(model.R_coarse.ws[0][3])
+        self.R_coarse.U_z.W.copydata(model.R_coarse.ws[0][4])
+        self.R_coarse.U.W.copydata(model.R_coarse.ws[0][5])
+
+        self.R_coarse.W_r.b.copydata(model.R_coarse.bs[0][0])
+        self.R_coarse.W_z.b.copydata(model.R_coarse.bs[0][1])
+        self.R_coarse.W.b.copydata(model.R_coarse.bs[0][2])
+        self.R_coarse.U_r.b.copydata(model.R_coarse.bs[0][3])
+        self.R_coarse.U_z.b.copydata(model.R_coarse.bs[0][4])
+        self.R_coarse.U.b.copydata(model.R_coarse.bs[0][5])
+
+        self.R_fine.W_r.W.copydata(model.R_fine.ws[0][0])
+        self.R_fine.W_z.W.copydata(model.R_fine.ws[0][1])
+        self.R_fine.W.W.copydata(model.R_fine.ws[0][2])
+        self.R_fine.U_r.W.copydata(model.R_fine.ws[0][3])
+        self.R_fine.U_z.W.copydata(model.R_fine.ws[0][4])
+        self.R_fine.U.W.copydata(model.R_fine.ws[0][5])
+
+        self.R_fine.W_r.b.copydata(model.R_fine.bs[0][0])
+        self.R_fine.W_z.b.copydata(model.R_fine.bs[0][1])
+        self.R_fine.W.b.copydata(model.R_fine.bs[0][2])
+        self.R_fine.U_r.b.copydata(model.R_fine.bs[0][3])
+        self.R_fine.U_z.b.copydata(model.R_fine.bs[0][4])
+        self.R_fine.U.b.copydata(model.R_fine.bs[0][5])
+
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def forward_one(self, prev_c, prev_f, hidden=None):
+        """
+        c: coarse
+        f: fine
+        :param prev_c: float -1 ~ +1 (batch_size, )
+        :param prev_f: float -1 ~ +1 (batch_size, )
+        :param hidden: float (batch_size, hidden_size)
+        :return:
+            out_c: float (batch_size, half_bins)
+            out_f: float (batch_size, half_bins)
+            hidden: float (batch_size, hidden_size)
+        """
+        batch_size = len(prev_c)
+
+        if hidden is not None:
+            hidden_coarse, hidden_fine = F.split_axis(hidden, 2, axis=1)  # shape: (batch_size, half_hidden_size)
+        else:
+            hidden_coarse = hidden_fine = self.get_init_hidden(batch_size=batch_size)
+
+        in_coarse = F.stack((prev_c, prev_f), axis=1)  # shape: (batch_size, 2)
+        hidden_coarse = self.R_coarse(h=hidden_coarse, x=in_coarse)  # shape: (batch_size, ?)
+
+        out_c = self.model.O2(F.relu(self.model.O1(hidden_coarse)))  # shape: (batch_size, ?)
+        curr_c = self.sampling(out_c)
+
+        in_fine = F.stack((prev_c, prev_f, curr_c), axis=1)  # shape: (batch_size, 3)
+        hidden_fine = self.R_fine(h=hidden_fine, x=in_fine)  # shape: (batch_size, ?)
+
+        out_f = F.reshape(hidden_fine, shape=(batch_size, -1))  # shape: (batch_size, ?)
+        out_f = self.model.O4(F.relu(self.model.O3(out_f)))  # shape: (batch_size, ?)
+
+        # put the hidden state back together
+        hidden = F.concat((hidden_coarse, hidden_fine), axis=1)
+
+        return out_c, out_f, hidden
+
+    def get_init_hidden(self, batch_size=1):
+        return self.xp.zeros((batch_size, self.half_hidden_size), dtype=self.xp.float32)
+
+
 def create_predictor(config: ModelConfig) -> BaseWaveRNN:
     if not config.use_original_model:
         predictor = WaveRNN(config)
