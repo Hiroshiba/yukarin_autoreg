@@ -31,10 +31,10 @@ class Generator(object):
         w_list = []
 
         c = f = self.model.xp.zeros((1,), dtype=np.float32)
-        hidden = None
+        hc = hf = None
         for _ in range(self.config.dataset.sampling_rate * time_length):
             with chainer.using_config('train', False):
-                c, f, hidden = self.model.forward_one(prev_c=c, prev_f=f, hidden=hidden)
+                c, f, hc, hf = self.model.forward_one(prev_c=c, prev_f=f, hidden_coarse=hc, hidden_fine=hf)
 
             c = self.model.sampling(c, maximum=sampling_maximum)
             f = self.model.sampling(f, maximum=sampling_maximum)
