@@ -23,6 +23,10 @@ def decode_16bit(coarse, fine):
     return signal.astype(np.float32)
 
 
+def normalize(b):
+    return b / 127.5 - 1
+
+
 class Dataset(chainer.dataset.DatasetMixin):
     def __init__(self, paths: List[Path], config: DatasetConfig) -> None:
         self.config = config
@@ -43,8 +47,8 @@ class Dataset(chainer.dataset.DatasetMixin):
 
         coarse, fine = encode_16bit(wave)
         return dict(
-            input_coarse=(coarse / 127.5 - 1).astype(np.float32),
-            input_fine=(fine / 127.5 - 1).astype(np.float32)[:-1],
+            input_coarse=normalize(coarse).astype(np.float32),
+            input_fine=normalize(fine).astype(np.float32)[:-1],
             target_coarse=coarse[1:],
             target_fine=fine[1:],
         )

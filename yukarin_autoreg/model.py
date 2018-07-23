@@ -2,6 +2,7 @@ import chainer
 import chainer.functions as F
 import chainer.links as L
 
+import numpy as np
 from yukarin_autoreg.config import ModelConfig
 
 
@@ -25,17 +26,25 @@ class MaskGRU(L.NStepGRU):
             hidden_coarse: float (batch_size, N, half_hidden_size)
             hidden_fine: float (batch_size, N, half_hidden_size)
         """
+        batch_size = c_array.shape[0]
+
+        if hidden_coarse is None:
+            hidden_coarse, hidden_fine = self.get_init_hidden(batch_size)
+
         input = F.stack((c_array, f_array, curr_c_array), axis=2)  # shape: (batch_size, N, 3)
-        if hidden_coarse is not None:
-            hidden = F.concat((hidden_coarse, hidden_fine), axis=1)
-            hidden = F.expand_dims(hidden, axis=0)
-        else:
-            hidden = None
+        hidden = F.concat((hidden_coarse, hidden_fine), axis=1)
+        hidden = F.expand_dims(hidden, axis=0)
 
         _, hidden = super().__call__(hx=hidden, xs=F.separate(input, axis=0))
         hidden = F.stack(hidden, axis=0)  # shape: (batch_size, N, hidden_size)
         hidden_coarse, hidden_fine = F.split_axis(hidden, 2, axis=2)  # shape: (batch_size, N, half_hidden_size)
         return hidden_coarse, hidden_fine
+
+    def get_init_hidden(self, batch_size: int, dtype=np.float32):
+        with chainer.cuda.get_device_from_id(self._device_id):
+            hc = chainer.Variable(self.xp.zeros((batch_size, self.out_size // 2), dtype=dtype))
+            hf = chainer.Variable(self.xp.zeros((batch_size, self.out_size // 2), dtype=dtype))
+        return hc, hf
 
     def rnn(self, *args):
         ws = args[3][0]
@@ -61,6 +70,81 @@ class MaskGRU(L.NStepGRU):
 
         from chainer.functions.connection import n_step_gru as rnn
         return rnn.n_step_gru(*args)
+
+    def onestep_coarse(self, c_array, f_array, hidden_coarse=None, hidden_fine=None):
+        """
+        :param c_array: float -1 ~ +1 (batch_size, )
+        :param f_array: float -1 ~ +1 (batch_size, )
+        :param hidden_coarse: float (batch_size, half_hidden_size)
+        :param hidden_fine: float (batch_size, half_hidden_size)
+        :return:
+            hidden_coarse: float (batch_size, half_hidden_size)
+        """
+        batch_size = c_array.shape[0]
+
+        if hidden_coarse is None:
+            hidden_coarse, hidden_fine = self.get_init_hidden(batch_size)
+
+        x = F.stack((c_array, f_array), axis=1)  # shape: (batch_size, 2)
+        h = F.concat((hidden_coarse, hidden_fine), axis=1)
+        w = [w[:self.out_size // 2] for w in self.ws[0]]
+        b = [b[:self.out_size // 2] for b in self.bs[0]]
+
+        w[0] = w[0][:, :2]
+        w[1] = w[1][:, :2]
+        w[2] = w[2][:, :2]
+
+        xw = F.concat([w[0], w[1], w[2]], axis=0)
+        hw = F.concat([w[3], w[4], w[5]], axis=0)
+        xb = F.concat([b[0], b[1], b[2]], axis=0)
+        hb = F.concat([b[3], b[4], b[5]], axis=0)
+
+        gru_x = F.linear(x, xw, xb)
+        gru_h = F.linear(h, hw, hb)
+
+        W_r_x, W_z_x, W_x = F.split_axis(gru_x, 3, axis=1)
+        U_r_h, U_z_h, U_x = F.split_axis(gru_h, 3, axis=1)
+
+        r = F.sigmoid(W_r_x + U_r_h)
+        z = F.sigmoid(W_z_x + U_z_h)
+        h_bar = F.tanh(W_x + r * U_x)
+        return F.linear_interpolate(z, hidden_coarse, h_bar)
+
+    def onestep_fine(self, c_array, f_array, curr_c_array, hidden_coarse=None, hidden_fine=None):
+        """
+        :param c_array: float -1 ~ +1 (batch_size, )
+        :param f_array: float -1 ~ +1 (batch_size, )
+        :param curr_c_array: float -1 ~ +1 (batch_size, )
+        :param hidden_coarse: float (batch_size, half_hidden_size)
+        :param hidden_fine: float (batch_size, half_hidden_size)
+        :return:
+            hidden_coarse: float (batch_size, half_hidden_size)
+        """
+        batch_size = c_array.shape[0]
+
+        if hidden_coarse is None:
+            hidden_coarse, hidden_fine = self.get_init_hidden(batch_size)
+
+        x = F.stack((c_array, f_array, curr_c_array), axis=1)  # shape: (batch_size, 3)
+        h = F.concat((hidden_coarse, hidden_fine), axis=1)
+        w = [w[self.out_size // 2:] for w in self.ws[0]]
+        b = [b[self.out_size // 2:] for b in self.bs[0]]
+
+        xw = F.concat([w[0], w[1], w[2]], axis=0)
+        hw = F.concat([w[3], w[4], w[5]], axis=0)
+        xb = F.concat([b[0], b[1], b[2]], axis=0)
+        hb = F.concat([b[3], b[4], b[5]], axis=0)
+
+        gru_x = F.linear(x, xw, xb)
+        gru_h = F.linear(h, hw, hb)
+
+        W_r_x, W_z_x, W_x = F.split_axis(gru_x, 3, axis=1)
+        U_r_h, U_z_h, U_x = F.split_axis(gru_h, 3, axis=1)
+
+        r = F.sigmoid(W_r_x + U_r_h)
+        z = F.sigmoid(W_z_x + U_z_h)
+        h_bar = F.tanh(W_x + r * U_x)
+        return F.linear_interpolate(z, hidden_fine, h_bar)
 
 
 class WaveRNN(chainer.Chain):
@@ -151,32 +235,23 @@ class WaveRNN(chainer.Chain):
             hidden_coarse: float (batch_size, half_hidden_size)
             hidden_fine: float (batch_size, half_hidden_size)
         """
-        prev_c = F.expand_dims(prev_c, axis=1)  # shape: (batch_size, 1)
-        prev_f = F.expand_dims(prev_f, axis=1)  # shape: (batch_size, 1)
-        curr_c_dummy = self.xp.zeros_like(prev_c.data)  # shape: (batch_size, 1)
-
-        new_hidden_coarse, _ = self.R(
+        new_hidden_coarse = self.R.onestep_coarse(
             c_array=prev_c,
             f_array=prev_f,
-            curr_c_array=curr_c_dummy,
             hidden_coarse=hidden_coarse,
             hidden_fine=hidden_fine,
-        )  # shape: (batch_size, 1, half_hidden_size)
-        new_hidden_coarse = new_hidden_coarse[:, 0, :]  # shape: (batch_size, half_hidden_size)
+        )  # shape: (batch_size, half_hidden_size)
 
         out_c = self.O2(F.relu(self.O1(new_hidden_coarse)))  # shape: (batch_size, ?)
         curr_c = self.sampling(out_c)  # shape: (batch_size, )
 
-        curr_c = F.expand_dims(curr_c, axis=1)  # shape: (batch_size, 1)
-
-        _, new_hidden_fine = self.R(
+        new_hidden_fine = self.R.onestep_fine(
             c_array=prev_c,
             f_array=prev_f,
             curr_c_array=curr_c,
             hidden_coarse=hidden_coarse,
             hidden_fine=hidden_fine,
-        )  # shape: (batch_size, 1, half_hidden_size)
-        new_hidden_fine = new_hidden_fine[:, 0, :]  # shape: (batch_size, half_hidden_size)
+        )  # shape: (batch_size, half_hidden_size)
 
         out_f = self.O4(F.relu(self.O3(new_hidden_fine)))  # shape: (batch_size, ?)
         return out_c, out_f, new_hidden_coarse, new_hidden_fine

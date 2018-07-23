@@ -2,10 +2,13 @@ import argparse
 import re
 from functools import partial
 from pathlib import Path
+import glob
 
+import numpy as np
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.generator import Generator
 from yukarin_autoreg.utility.json_utility import save_arguments
+from yukarin_autoreg.wave import Wave
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', '-md', type=Path)
@@ -48,13 +51,19 @@ def _get_predictor_model_path(model_dir: Path, iteration: int = None, prefix: st
     return model_path
 
 
-def process(path: Path, generator: Generator):
+def process(path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
     try:
+        w = Wave.load(path, sampling_rate=sampling_rate)
+        c, f, hc, hf = generator.forward(w.wave[:sampling_length])
         wave = generator.generate(
             time_length=time_length,
             sampling_maximum=sampling_maximum,
+            coarse=c,
+            fine=f,
+            hidden_coarse=hc,
+            hidden_fine=hf,
         )
-        wave.save(path)
+        wave.save(output / path.name)
     except:
         import traceback
         traceback.print_exc()
@@ -72,10 +81,17 @@ def main():
     )
     print(f'Loaded generator "{model}"')
 
-    paths_test = [output / f'{name}.wav' for name in range(num_test)]
+    input_paths = [Path(p) for p in glob.glob(str(config.dataset.input_glob))]
+    np.random.RandomState(config.dataset.seed).shuffle(input_paths)
+    test_paths = input_paths[:num_test]
 
-    process_partial = partial(process, generator=generator)
-    list(map(process_partial, paths_test))
+    process_partial = partial(
+        process,
+        generator=generator,
+        sampling_rate=config.dataset.sampling_rate,
+        sampling_length=config.dataset.sampling_length,
+    )
+    list(map(process_partial, test_paths))
 
 
 if __name__ == '__main__':
