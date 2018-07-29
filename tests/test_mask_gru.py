@@ -9,7 +9,7 @@ length = 3
 hidden_size = 8
 
 
-class TestStringMethods(unittest.TestCase):
+class TestMaskGRU(unittest.TestCase):
     def setUp(self):
         self.mask_gru = MaskGRU(out_size=hidden_size)
         self.c_array = np.random.rand(batch_size, length).astype(np.float32)

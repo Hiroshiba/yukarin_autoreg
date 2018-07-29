@@ -8,6 +8,7 @@ from yukarin_autoreg.config import Config
 from yukarin_autoreg.dataset import encode_16bit
 from yukarin_autoreg.dataset import decode_16bit
 from yukarin_autoreg.dataset import normalize
+from yukarin_autoreg.dataset import denormalize
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.wave import Wave
 
@@ -43,7 +44,7 @@ class Generator(object):
 
     def generate(
             self,
-            time_length: int,
+            time_length: float,
             sampling_maximum: bool,
             coarse=None,
             fine=None,
@@ -59,15 +60,15 @@ class Generator(object):
             c, f = coarse, fine
 
         hc, hf = hidden_coarse, hidden_fine
-        for _ in range(self.config.dataset.sampling_rate * time_length):
+        for _ in range(int(self.config.dataset.sampling_rate * time_length)):
             c, f, hc, hf = self.model.forward_one(prev_c=c, prev_f=f, hidden_coarse=hc, hidden_fine=hf)
 
             c = self.model.sampling(c, maximum=sampling_maximum)
             f = self.model.sampling(f, maximum=sampling_maximum)
 
             w = decode_16bit(
-                coarse=chainer.cuda.to_cpu((c[0] + 1) * 255 // 2),
-                fine=chainer.cuda.to_cpu((f[0] + 1) * 255 // 2),
+                coarse=chainer.cuda.to_cpu(denormalize(c[0])),
+                fine=chainer.cuda.to_cpu(denormalize(f[0])),
             )
             w_list.append(w)
 

@@ -13,15 +13,16 @@ class DatasetConfig(NamedTuple):
     sampling_rate: int
     sampling_length: int
     input_glob: str
+    silence_top_db: float
     bit_size: int
     seed: int
     num_test: int
+    sign_wave_dataset: bool
 
 
 class ModelConfig(NamedTuple):
     hidden_size: int
     bit_size: int
-    use_original_model: bool
 
 
 class LossConfig(NamedTuple):
@@ -70,14 +71,15 @@ def create_from_json(s: Union[str, Path]):
             sampling_rate=d['dataset']['sampling_rate'],
             sampling_length=d['dataset']['sampling_length'],
             input_glob=d['dataset']['input_glob'],
+            silence_top_db=d['dataset']['silence_top_db'],
             bit_size=d['dataset']['bit_size'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
+            sign_wave_dataset=d['dataset']['sign_wave_dataset'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
-            use_original_model=d['model']['use_original_model'],
         ),
         loss=LossConfig(
         ),
@@ -97,5 +99,8 @@ def create_from_json(s: Union[str, Path]):
 
 
 def backward_compatible(d: Dict):
-    if 'use_original_model' not in d['model']:
-        d['model']['use_original_model'] = False
+    if 'sign_wave_dataset' not in d['dataset']:
+        d['dataset']['sign_wave_dataset'] = False
+
+    if 'silence_top_db' not in d['dataset']:
+        d['dataset']['silence_top_db'] = None

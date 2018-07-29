@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', '-md', type=Path)
 parser.add_argument('--model_iteration', '-mi', type=int)
 parser.add_argument('--model_config', '-mc', type=Path)
-parser.add_argument('--time_length', '-tl', type=int, default=1)
+parser.add_argument('--time_length', '-tl', type=float, default=1)
 parser.add_argument('--num_test', '-nt', type=int, default=5)
 parser.add_argument('--sampling_maximum', '-sm', action='store_true')
 parser.add_argument('--output_dir', '-o', type=Path, default='./output/')
@@ -51,22 +51,26 @@ def _get_predictor_model_path(model_dir: Path, iteration: int = None, prefix: st
     return model_path
 
 
-def process(path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
-    try:
-        w = Wave.load(path, sampling_rate=sampling_rate)
-        c, f, hc, hf = generator.forward(w.wave[:sampling_length])
-        wave = generator.generate(
-            time_length=time_length,
-            sampling_maximum=sampling_maximum,
-            coarse=c,
-            fine=f,
-            hidden_coarse=hc,
-            hidden_fine=hf,
-        )
-        wave.save(output / path.name)
-    except:
-        import traceback
-        traceback.print_exc()
+def process_wo_context(filename: str, generator: Generator):
+    wave = generator.generate(
+        time_length=time_length,
+        sampling_maximum=sampling_maximum,
+    )
+    wave.save(output / filename)
+
+
+def process_resume(path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
+    w = Wave.load(path, sampling_rate=sampling_rate)
+    c, f, hc, hf = generator.forward(w.wave[:sampling_length])
+    wave = generator.generate(
+        time_length=time_length,
+        sampling_maximum=sampling_maximum,
+        coarse=c,
+        fine=f,
+        hidden_coarse=hc,
+        hidden_fine=hf,
+    )
+    wave.save(output / path.name)
 
 
 def main():
@@ -81,17 +85,22 @@ def main():
     )
     print(f'Loaded generator "{model}"')
 
-    input_paths = [Path(p) for p in glob.glob(str(config.dataset.input_glob))]
-    np.random.RandomState(config.dataset.seed).shuffle(input_paths)
-    test_paths = input_paths[:num_test]
+    # random
+    process_wo_context('wo_context.wav', generator=generator)
 
-    process_partial = partial(
-        process,
-        generator=generator,
-        sampling_rate=config.dataset.sampling_rate,
-        sampling_length=config.dataset.sampling_length,
-    )
-    list(map(process_partial, test_paths))
+    # resume
+    if config.dataset.input_glob is not None:
+        input_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_glob))])
+        np.random.RandomState(config.dataset.seed).shuffle(input_paths)
+        test_paths = input_paths[:num_test]
+
+        process_partial = partial(
+            process_resume,
+            generator=generator,
+            sampling_rate=config.dataset.sampling_rate,
+            sampling_length=config.dataset.sampling_length,
+        )
+        list(map(process_partial, test_paths))
 
 
 if __name__ == '__main__':
