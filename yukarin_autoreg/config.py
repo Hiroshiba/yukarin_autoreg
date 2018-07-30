@@ -1,10 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import NamedTuple
-from typing import Union
+from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 from yukarin_autoreg.utility.json_utility import JSONEncoder
 
@@ -14,6 +10,7 @@ class DatasetConfig(NamedTuple):
     sampling_length: int
     input_glob: str
     silence_top_db: float
+    clipping_range: Tuple[float, float]
     bit_size: int
     seed: int
     num_test: int
@@ -72,6 +69,7 @@ def create_from_json(s: Union[str, Path]):
             sampling_length=d['dataset']['sampling_length'],
             input_glob=d['dataset']['input_glob'],
             silence_top_db=d['dataset']['silence_top_db'],
+            clipping_range=d['dataset']['clipping_range'],
             bit_size=d['dataset']['bit_size'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
@@ -104,3 +102,6 @@ def backward_compatible(d: Dict):
 
     if 'silence_top_db' not in d['dataset']:
         d['dataset']['silence_top_db'] = None
+
+    if 'clipping_range' not in d['dataset']:
+        d['dataset']['clipping_range'] = None

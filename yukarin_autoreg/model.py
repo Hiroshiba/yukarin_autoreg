@@ -223,10 +223,11 @@ class WaveRNN(chainer.Chain):
 
         return out_c_array, out_f_array, new_hidden_coarse, new_hidden_fine
 
-    def forward_one(self, prev_c, prev_f, hidden_coarse=None, hidden_fine=None):
+    def forward_one(self, prev_c, prev_f, prev_corr_c=None, hidden_coarse=None, hidden_fine=None):
         """
         :param prev_c: float -1 ~ +1 (batch_size, )
         :param prev_f: float -1 ~ +1 (batch_size, )
+        :param prev_corr_c: float -1 ~ +1 (batch_size, )
         :param hidden_coarse: float (batch_size, half_hidden_size)
         :param hidden_fine: float (batch_size, half_hidden_size)
         :return:
@@ -243,7 +244,11 @@ class WaveRNN(chainer.Chain):
         )  # shape: (batch_size, half_hidden_size)
 
         out_c = self.O2(F.relu(self.O1(new_hidden_coarse)))  # shape: (batch_size, ?)
-        curr_c = self.sampling(out_c)  # shape: (batch_size, )
+
+        if prev_corr_c is None:
+            curr_c = self.sampling(out_c)  # shape: (batch_size, )
+        else:
+            curr_c = prev_corr_c
 
         new_hidden_fine = self.R.onestep_fine(
             c_array=prev_c,
@@ -263,9 +268,11 @@ class WaveRNN(chainer.Chain):
             indexes = xp.argmax(F.softmax(softmax_dist, axis=1).data, axis=1)
             sampled = xp.linspace(-1, 1, self.half_bins, dtype=softmax_dist.dtype)[indexes]
         else:
+            prob_np = lambda x: x if isinstance(x, np.ndarray) else x.get()  # cupy don't have random.choice method
+
             prob_list = F.softmax(softmax_dist, axis=1)
             sampled = xp.array([
-                xp.random.choice(xp.linspace(-1, 1, self.half_bins, dtype=prob.dtype), p=prob)
+                np.random.choice(np.linspace(-1, 1, self.half_bins, dtype=prob.dtype), p=prob_np(prob))
                 for prob in prob_list.data
             ])
         return sampled

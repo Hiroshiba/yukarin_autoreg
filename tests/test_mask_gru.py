@@ -70,7 +70,7 @@ class TestMaskGRU(unittest.TestCase):
             hidden_fine=self.hidden_fine,
         )
 
-        self.assertTrue(np.all(ca[:, 0, :].data == cb.data))
+        np.testing.assert_equal(ca[:, 0, :].data, cb.data)
 
     def test_onestep_fine(self):
         _, fa = self.mask_gru(
@@ -89,7 +89,29 @@ class TestMaskGRU(unittest.TestCase):
             hidden_fine=self.hidden_fine,
         )
 
-        self.assertTrue(np.all(fa[:, 0, :].data == fb.data))
+        np.testing.assert_equal(fa[:, 0, :].data, fb.data)
+
+    def test_same_forward(self):
+        hca, hfa = self.mask_gru(
+            c_array=self.c_array,
+            f_array=self.f_array,
+            curr_c_array=self.curr_c_array,
+            hidden_coarse=self.hidden_coarse,
+            hidden_fine=self.hidden_fine,
+        )
+
+        hcb, hfb = self.hidden_coarse, self.hidden_fine
+        for i, (c, f, curr_c) in enumerate(zip(
+                np.split(self.c_array, length, axis=1),
+                np.split(self.f_array, length, axis=1),
+                np.split(self.curr_c_array, length, axis=1),
+        )):
+            bef_hcb = hcb
+            hcb = self.mask_gru.onestep_coarse(c[:, 0], f[:, 0], hcb, hfb)
+            hfb = self.mask_gru.onestep_fine(c[:, 0], f[:, 0], curr_c[:, 0], bef_hcb, hfb)
+
+            np.testing.assert_equal(hca[:, i, :].data, hcb.data)
+            np.testing.assert_equal(hfa[:, i, :].data, hfb.data)
 
 
 if __name__ == '__main__':

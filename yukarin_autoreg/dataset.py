@@ -1,6 +1,7 @@
 import glob
+from functools import partial
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import chainer
 import librosa
@@ -34,7 +35,7 @@ def denormalize(b):
 
 
 class SignWaveDataset(chainer.dataset.DatasetMixin):
-    def __init__(self, sampling_rate: int, sampling_length: int):
+    def __init__(self, sampling_rate: int, sampling_length: int) -> None:
         self.sampling_rate = sampling_rate
         self.sampling_length = sampling_length
 
@@ -58,11 +59,22 @@ class SignWaveDataset(chainer.dataset.DatasetMixin):
 
 
 class WavesDataset(chainer.dataset.DatasetMixin):
-    def __init__(self, waves: List[np.array], sampling_length: int, top_db: Optional[float]):
+    def __init__(
+            self,
+            waves: List[np.array],
+            sampling_length: int,
+            top_db: Optional[float],
+            clipping_range: Optional[Tuple[float, float]],
+    ) -> None:
         self.sampling_length = sampling_length
         wave = np.concatenate(waves)
+
         if top_db is not None:
             wave = librosa.effects.remix(wave, librosa.effects.split(wave, top_db=top_db))
+
+        if clipping_range is not None:
+            wave = np.clip(wave, clipping_range[0], clipping_range[1]) / np.max(np.abs(clipping_range))
+
         self.wave = wave
 
     def __len__(self):
@@ -109,8 +121,14 @@ def create(config: DatasetConfig):
     tests = waves[:num_test]
     evals = trains[:num_test]
 
+    _Dataset = partial(
+        WavesDataset,
+        sampling_length=config.sampling_length,
+        top_db=config.silence_top_db,
+        clipping_range=config.clipping_range,
+    )
     return {
-        'train': WavesDataset(trains, sampling_length=config.sampling_length, top_db=config.silence_top_db),
-        'test': WavesDataset(tests, sampling_length=config.sampling_length, top_db=config.silence_top_db),
-        'train_eval': WavesDataset(evals, sampling_length=config.sampling_length, top_db=config.silence_top_db),
+        'train': _Dataset(trains),
+        'test': _Dataset(tests),
+        'train_eval': _Dataset(evals),
     }

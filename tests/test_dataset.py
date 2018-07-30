@@ -68,7 +68,12 @@ class TestWavesDataset(unittest.TestCase):
             np.linspace(-1, 0, num=self.num // 2, endpoint=False),
             np.linspace(0, 1, num=self.num // 2, endpoint=False),
         ]
-        self.dataset = WavesDataset(waves, sampling_length=self.sampling_length, top_db=None)
+        self.dataset = WavesDataset(
+            waves,
+            sampling_length=self.sampling_length,
+            top_db=None,
+            clipping_range=None,
+        )
 
     def test_init(self):
         pass
@@ -82,6 +87,25 @@ class TestWavesDataset(unittest.TestCase):
 
         for i in range(self.num // self.sampling_length - 2):
             self.assertLess(self.dataset[i]['input_coarse'].sum(), self.dataset[i + 1]['input_coarse'].sum())
+
+    def test_clip(self):
+        dataset = WavesDataset(
+            [np.linspace(0, 0.5, self.num // 4) for _ in range(4)],
+            sampling_length=self.sampling_length,
+            top_db=None,
+            clipping_range=None,
+        )
+        self.assertEqual(dataset.wave.min(), 0.0)
+        self.assertEqual(dataset.wave.max(), 0.5)
+
+        dataset = WavesDataset(
+            [np.linspace(0, 0.5, self.num // 4) for _ in range(4)],
+            sampling_length=self.sampling_length,
+            top_db=None,
+            clipping_range=(0, 0.5),
+        )
+        self.assertEqual(dataset.wave.min(), 0.0)
+        self.assertEqual(dataset.wave.max(), 1.0)
 
 
 if __name__ == '__main__':
