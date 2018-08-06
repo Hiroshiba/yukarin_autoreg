@@ -14,8 +14,8 @@ class Wave(object):
         self.sampling_rate = sampling_rate
 
     @staticmethod
-    def load(path: Path, sampling_rate: int, dtype=np.float32):
-        wave = librosa.core.load(str(path), sr=sampling_rate, dtype=dtype)[0]
+    def load(path: Path, sampling_rate: int = None, dtype=np.float32):
+        wave, sampling_rate = librosa.core.load(str(path), sr=sampling_rate, dtype=dtype)
         return Wave(wave=wave, sampling_rate=sampling_rate)
 
     def save(self, path: Path):

@@ -1,6 +1,7 @@
 numpy
 chainer
 librosa
+pysptk
 matplotlib
 chainerui
 tensorflow

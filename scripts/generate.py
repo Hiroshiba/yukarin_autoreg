@@ -1,11 +1,14 @@
 import argparse
+import glob
 import re
 from functools import partial
+from itertools import starmap
 from pathlib import Path
-import glob
 
 import numpy as np
+
 from yukarin_autoreg.config import create_from_json as create_config
+from yukarin_autoreg.dataset import load_local_and_interp
 from yukarin_autoreg.generator import Generator
 from yukarin_autoreg.utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave
@@ -51,26 +54,38 @@ def _get_predictor_model_path(model_dir: Path, iteration: int = None, prefix: st
     return model_path
 
 
-def process_wo_context(filename: str, generator: Generator):
-    wave = generator.generate(
-        time_length=time_length,
-        sampling_maximum=sampling_maximum,
-    )
-    wave.save(output / filename)
+def process_wo_context(local_path: Path, generator: Generator, sampling_rate: int, postfix='_woc'):
+    try:
+        local = load_local_and_interp(local_path, sampling_rate=sampling_rate)
+        wave = generator.generate(
+            time_length=time_length,
+            sampling_maximum=sampling_maximum,
+            local_array=local,
+        )
+        wave.save(output / (local_path.stem + postfix + '.wav'))
+    except:
+        import traceback
+        traceback.print_exc()
 
 
-def process_resume(path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
-    w = Wave.load(path, sampling_rate=sampling_rate)
-    c, f, hc, hf = generator.forward(w.wave[:sampling_length])
-    wave = generator.generate(
-        time_length=time_length,
-        sampling_maximum=sampling_maximum,
-        coarse=c,
-        fine=f,
-        hidden_coarse=hc,
-        hidden_fine=hf,
-    )
-    wave.save(output / path.name)
+def process_resume(wave_path: Path, local_path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
+    try:
+        w = Wave.load(wave_path, sampling_rate=sampling_rate)
+        l = load_local_and_interp(local_path, sampling_rate=sampling_rate)
+        c, f, hc, hf = generator.forward(w.wave[:sampling_length], l[:sampling_length])
+        wave = generator.generate(
+            time_length=time_length,
+            sampling_maximum=sampling_maximum,
+            coarse=c,
+            fine=f,
+            local_array=l[sampling_length:],
+            hidden_coarse=hc,
+            hidden_fine=hf,
+        )
+        wave.save(output / wave_path.name)
+    except:
+        import traceback
+        traceback.print_exc()
 
 
 def main():
@@ -85,22 +100,32 @@ def main():
     )
     print(f'Loaded generator "{model}"')
 
-    # random
-    process_wo_context('wo_context.wav', generator=generator)
+    if config.dataset.input_wave_glob is not None:
+        wave_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_wave_glob))])
+        local_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_local_glob))])
+        assert len(wave_paths) == len(local_paths)
 
-    # resume
-    if config.dataset.input_glob is not None:
-        input_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_glob))])
-        np.random.RandomState(config.dataset.seed).shuffle(input_paths)
-        test_paths = input_paths[:num_test]
+        np.random.RandomState(config.dataset.seed).shuffle(wave_paths)
+        np.random.RandomState(config.dataset.seed).shuffle(local_paths)
+        wave_paths = wave_paths[:num_test]
+        local_paths = local_paths[:num_test]
 
+        # resume
         process_partial = partial(
             process_resume,
             generator=generator,
             sampling_rate=config.dataset.sampling_rate,
-            sampling_length=config.dataset.sampling_length,
+            sampling_length=config.dataset.sampling_rate,
         )
-        list(map(process_partial, test_paths))
+        list(starmap(process_partial, zip(wave_paths, local_paths)))
+
+        # random
+        process_partial = partial(
+            process_wo_context,
+            generator=generator,
+            sampling_rate=config.dataset.sampling_rate,
+        )
+        list(map(process_partial, local_paths))
 
 
 if __name__ == '__main__':

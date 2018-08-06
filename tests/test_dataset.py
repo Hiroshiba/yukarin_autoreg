@@ -2,12 +2,7 @@ import unittest
 
 import numpy as np
 
-from yukarin_autoreg.dataset import decode_16bit
-from yukarin_autoreg.dataset import encode_16bit
-from yukarin_autoreg.dataset import normalize
-from yukarin_autoreg.dataset import denormalize
-from yukarin_autoreg.dataset import WavesDataset
-from yukarin_autoreg.wave import Wave
+from yukarin_autoreg.dataset import WavesDataset, decode_16bit, encode_16bit, normalize, Input
 
 batch_size = 2
 length = 3
@@ -40,7 +35,17 @@ class TestDecode16Bit(unittest.TestCase):
     def test_init(self):
         pass
 
-    def test_encode(self):
+    def test_decode(self):
+        c, f = np.meshgrid(np.arange(256), np.arange(256))
+        w = decode_16bit(c.ravel(), f.ravel())
+
+        self.assertTrue(np.all(-1 <= w))
+        self.assertTrue(np.all(w <= 1))
+
+        self.assertEqual((w < 0).sum(), 2 ** 15)
+        self.assertEqual((w >= 0).sum(), 2 ** 15)
+
+    def test_encode_decode(self):
         coarse, fine = encode_16bit(self.wave_increase)
         w = decode_16bit(coarse, fine)
 
@@ -48,15 +53,9 @@ class TestDecode16Bit(unittest.TestCase):
 
 
 class TestNormalize(unittest.TestCase):
-    def setUp(self):
-        self.wave_increase = np.linspace(-1, 1, num=256 ** 2).astype(np.float32)
-
-    def test_init(self):
-        pass
-
     def test_encode(self):
-        w = denormalize(normalize(self.wave_increase))
-        np.testing.assert_allclose(self.wave_increase, w, atol=1e-4)
+        self.assertEqual(normalize(0), -1)
+        self.assertEqual(normalize(255), 1)
 
 
 class TestWavesDataset(unittest.TestCase):
@@ -68,44 +67,30 @@ class TestWavesDataset(unittest.TestCase):
             np.linspace(-1, 0, num=self.num // 2, endpoint=False),
             np.linspace(0, 1, num=self.num // 2, endpoint=False),
         ]
+        inputs = [
+            Input(
+                wave=w,
+                local=np.empty((len(w), 0)),
+            )
+            for w in waves
+        ]
         self.dataset = WavesDataset(
-            waves,
+            inputs,
             sampling_length=self.sampling_length,
-            top_db=None,
-            clipping_range=None,
         )
 
     def test_init(self):
         pass
 
     def test_get(self):
-        for i in range(self.num // self.sampling_length - 1):
-            self.assertEqual(len(self.dataset[i]['input_coarse']), self.sampling_length)
-            self.assertEqual(len(self.dataset[i]['input_fine']), self.sampling_length - 1)
-            self.assertEqual(len(self.dataset[i]['target_coarse']), self.sampling_length - 1)
-            self.assertEqual(len(self.dataset[i]['target_fine']), self.sampling_length - 1)
+        for d in self.dataset:
+            self.assertEqual(len(d['input_coarse']), self.sampling_length)
+            self.assertEqual(len(d['input_fine']), self.sampling_length - 1)
+            self.assertEqual(len(d['target_coarse']), self.sampling_length - 1)
+            self.assertEqual(len(d['target_fine']), self.sampling_length - 1)
 
-        for i in range(self.num // self.sampling_length - 2):
-            self.assertLess(self.dataset[i]['input_coarse'].sum(), self.dataset[i + 1]['input_coarse'].sum())
-
-    def test_clip(self):
-        dataset = WavesDataset(
-            [np.linspace(0, 0.5, self.num // 4) for _ in range(4)],
-            sampling_length=self.sampling_length,
-            top_db=None,
-            clipping_range=None,
-        )
-        self.assertEqual(dataset.wave.min(), 0.0)
-        self.assertEqual(dataset.wave.max(), 0.5)
-
-        dataset = WavesDataset(
-            [np.linspace(0, 0.5, self.num // 4) for _ in range(4)],
-            sampling_length=self.sampling_length,
-            top_db=None,
-            clipping_range=(0, 0.5),
-        )
-        self.assertEqual(dataset.wave.min(), 0.0)
-        self.assertEqual(dataset.wave.max(), 1.0)
+        for _ in range(10):
+            self.assertLess(self.dataset[0]['input_coarse'].sum(), self.dataset[1]['input_coarse'].sum())
 
 
 if __name__ == '__main__':

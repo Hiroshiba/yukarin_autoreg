@@ -2,12 +2,9 @@ import argparse
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import Any
-from typing import Dict
+from typing import Any, Dict
 
-from chainer import cuda
-from chainer import optimizers
-from chainer import training
+from chainer import cuda, optimizers, training
 from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions
@@ -83,11 +80,10 @@ trainer.extend(ext, name='test', trigger=trigger_log)
 ext = extensions.Evaluator(train_eval_iter, predictor, converter, device=config.train.gpu, eval_func=updater.forward)
 trainer.extend(ext, name='train', trigger=trigger_log)
 
-# trainer.extend(extensions.dump_graph('main/loss'))
-
 ext = extensions.snapshot_object(predictor, filename='main_{.updater.iteration}.npz')
 trainer.extend(ext, trigger=trigger_snapshot)
 
+trainer.extend(extensions.FailOnNonNumber(), trigger=trigger_log)
 trainer.extend(extensions.observe_lr(), trigger=trigger_log)
 trainer.extend(extensions.LogReport(trigger=trigger_log))
 trainer.extend(TensorBoardReport(writer=tb_writer), trigger=trigger_log)

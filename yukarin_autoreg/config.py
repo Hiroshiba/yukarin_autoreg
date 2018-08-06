@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Union
 
 from yukarin_autoreg.utility.json_utility import JSONEncoder
 
@@ -8,9 +8,9 @@ from yukarin_autoreg.utility.json_utility import JSONEncoder
 class DatasetConfig(NamedTuple):
     sampling_rate: int
     sampling_length: int
-    input_glob: str
-    silence_top_db: float
-    clipping_range: Tuple[float, float]
+    input_wave_glob: str
+    input_silence_glob: str
+    input_local_glob: str
     bit_size: int
     seed: int
     num_test: int
@@ -20,6 +20,7 @@ class DatasetConfig(NamedTuple):
 class ModelConfig(NamedTuple):
     hidden_size: int
     bit_size: int
+    local_size: int
 
 
 class LossConfig(NamedTuple):
@@ -67,9 +68,9 @@ def create_from_json(s: Union[str, Path]):
         dataset=DatasetConfig(
             sampling_rate=d['dataset']['sampling_rate'],
             sampling_length=d['dataset']['sampling_length'],
-            input_glob=d['dataset']['input_glob'],
-            silence_top_db=d['dataset']['silence_top_db'],
-            clipping_range=d['dataset']['clipping_range'],
+            input_wave_glob=d['dataset']['input_wave_glob'],
+            input_silence_glob=d['dataset']['input_silence_glob'],
+            input_local_glob=d['dataset']['input_local_glob'],
             bit_size=d['dataset']['bit_size'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
@@ -78,6 +79,7 @@ def create_from_json(s: Union[str, Path]):
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
+            local_size=d['model']['local_size'],
         ),
         loss=LossConfig(
         ),
@@ -105,3 +107,15 @@ def backward_compatible(d: Dict):
 
     if 'clipping_range' not in d['dataset']:
         d['dataset']['clipping_range'] = None
+
+    if 'input_wave_glob' not in d['dataset']:
+        d['dataset']['input_wave_glob'] = d['dataset']['input_glob']
+
+    if 'input_silence_glob' not in d['dataset']:
+        d['dataset']['input_silence_glob'] = None
+
+    if 'input_local_glob' not in d['dataset']:
+        d['dataset']['input_local_glob'] = None
+
+    if 'local_size' not in d['model']:
+        d['model']['local_size'] = 0
