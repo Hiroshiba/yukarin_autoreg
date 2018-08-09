@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 
 from yukarin_autoreg.config import create_from_json as create_config
-from yukarin_autoreg.dataset import load_local_and_interp
 from yukarin_autoreg.generator import Generator
+from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave
 
@@ -56,11 +56,11 @@ def _get_predictor_model_path(model_dir: Path, iteration: int = None, prefix: st
 
 def process_wo_context(local_path: Path, generator: Generator, sampling_rate: int, postfix='_woc'):
     try:
-        local = load_local_and_interp(local_path, sampling_rate=sampling_rate)
+        l = SamplingData.load(local_path).resample(sampling_rate, index=0, length=int(time_length * sampling_rate))
         wave = generator.generate(
             time_length=time_length,
             sampling_maximum=sampling_maximum,
-            local_array=local,
+            local_array=l,
         )
         wave.save(output / (local_path.stem + postfix + '.wav'))
     except:
@@ -70,9 +70,11 @@ def process_wo_context(local_path: Path, generator: Generator, sampling_rate: in
 
 def process_resume(wave_path: Path, local_path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
     try:
-        w = Wave.load(wave_path, sampling_rate=sampling_rate)
-        l = load_local_and_interp(local_path, sampling_rate=sampling_rate)
-        c, f, hc, hf = generator.forward(w.wave[:sampling_length], l[:sampling_length])
+        w = Wave.load(wave_path, sampling_rate=sampling_rate).wave
+        l = SamplingData.load(local_path).resample(sampling_rate, index=0, length=len(w))
+
+        c, f, hc, hf = generator.forward(w[:sampling_length], l[:sampling_length])
+
         wave = generator.generate(
             time_length=time_length,
             sampling_maximum=sampling_maximum,

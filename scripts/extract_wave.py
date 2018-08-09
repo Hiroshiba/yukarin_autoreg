@@ -33,7 +33,7 @@ def main():
     parser.add_argument('--input_glob', '-ig')
     parser.add_argument('--output_directory', '-od', type=Path)
     parser.add_argument('--sampling_rate', '-sr', type=int)
-    parser.add_argument('--clipping_range', '-cr', type=float, nargs=2)
+    parser.add_argument('--clipping_range', '-cr', type=float, nargs=2, help='(min, max)')
     config = parser.parse_args()
 
     input_glob = config.input_glob

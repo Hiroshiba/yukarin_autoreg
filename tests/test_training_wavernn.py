@@ -30,6 +30,7 @@ class RandomDataset(chainer.dataset.DatasetMixin):
         length = sampling_length
         wave = np.random.rand(length) * 2 - 1
         local = np.empty(shape=(length, 0), dtype=np.float32)
+        silence = np.zeros(shape=(length,), dtype=np.bool)
 
         coarse, fine = encode_16bit(wave)
         return dict(
@@ -38,6 +39,7 @@ class RandomDataset(chainer.dataset.DatasetMixin):
             target_coarse=coarse[1:],
             target_fine=fine[1:],
             local=local[1:],
+            silence=silence[1:],
         )
 
 

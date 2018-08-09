@@ -1,13 +1,20 @@
 import argparse
 import glob
+import multiprocessing
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
 import librosa
 import numpy as np
+import tqdm
 
 from yukarin_autoreg.utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave
+
+
+def process(p: Path, sampling_rate: int):
+    return Wave.load(p, sampling_rate).wave
 
 
 def main():
@@ -28,7 +35,10 @@ def main():
 
     paths = [Path(p) for p in glob.glob(str(input_glob))]
 
-    waves = [Wave.load(p, sampling_rate).wave for p in paths]
+    _process = partial(process, sampling_rate=sampling_rate)
+
+    pool = multiprocessing.Pool()
+    waves = list(tqdm.tqdm(pool.imap(_process, paths), total=len(paths)))
     lengths = [len(w) for w in waves]
 
     wave = np.concatenate(waves)
@@ -39,8 +49,8 @@ def main():
         silence[s:t] = False
 
     for i, (s, l) in enumerate(zip(np.cumsum([0] + lengths), lengths)):
-        out = output_directory / (paths[i].stem + '.npz')
-        np.savez(str(out), array=silence[s:s + l], rate=sampling_rate)
+        out = output_directory / (paths[i].stem + '.npy')
+        np.save(str(out), dict(array=silence[s:s + l], rate=sampling_rate))
 
 
 if __name__ == '__main__':

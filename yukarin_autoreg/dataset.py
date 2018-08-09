@@ -1,18 +1,32 @@
 import glob
 from functools import partial
 from pathlib import Path
-from typing import List, NamedTuple, Optional
+from typing import List, NamedTuple
 
 import chainer
 import numpy as np
 
 from yukarin_autoreg.config import DatasetConfig
+from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.wave import Wave
 
 
 class Input(NamedTuple):
-    wave: np.ndarray
-    local: np.ndarray
+    wave: Wave
+    silence: SamplingData
+    local: SamplingData
+
+    @staticmethod
+    def load(
+            path_wave: Path,
+            path_silence: Path,
+            path_local: Path,
+    ):
+        return Input(
+            wave=Wave.load(path_wave),
+            silence=SamplingData.load(path_silence),
+            local=SamplingData.load(path_local),
+        )
 
 
 def encode_16bit(wave):
@@ -32,51 +46,6 @@ def normalize(b):
     return b / 127.5 - 1
 
 
-def load_local_and_interp(path: Path, sampling_rate: int):
-    input_dict = np.load(path)
-    local, local_rate = input_dict['array'], input_dict['rate']
-    assert sampling_rate % local_rate == 0, f'{sampling_rate} {local_rate}'
-
-    local = np.repeat(local, sampling_rate // local_rate)[:, np.newaxis]
-    return local
-
-
-def load_input(
-        path_wave: Path,
-        path_silence: Optional[Path],
-        path_local: Optional[Path],
-):
-    w = Wave.load(path_wave)
-    wave = w.wave
-    sr = w.sampling_rate
-    length = len(wave)
-
-    if path_local is not None:
-        local = load_local_and_interp(path_local, sampling_rate=sr)
-
-        # trim wave
-        assert abs(len(local) - length) < sr
-        length = len(local)
-        wave = wave[:length]
-    else:
-        local = np.empty(shape=(length, 0), dtype=wave.dtype)
-
-    if path_silence is not None:
-        silence_dict = np.load(path_silence)
-        silence, rate = silence_dict['array'], silence_dict['rate']
-        assert sr == rate
-
-        silence = silence[:length]
-
-        wave = wave[~silence]
-        local = local[~silence]
-
-    return Input(
-        wave=wave,
-        local=local,
-    )
-
-
 class SignWaveDataset(chainer.dataset.DatasetMixin):
     def __init__(self, sampling_rate: int, sampling_length: int) -> None:
         self.sampling_rate = sampling_rate
@@ -90,41 +59,10 @@ class SignWaveDataset(chainer.dataset.DatasetMixin):
         rate = self.sampling_rate
         length = self.sampling_length
         rand = np.random.rand()
-        wave = np.sin((np.arange(length + 1) * freq / rate + rand) * 2 * np.pi)
+        wave = np.sin((np.arange(length) * freq / rate + rand) * 2 * np.pi)
 
         local = np.empty(shape=(length, 0), dtype=np.float32)
-
-        coarse, fine = encode_16bit(wave)
-        return dict(
-            input_coarse=normalize(coarse).astype(np.float32),
-            input_fine=normalize(fine).astype(np.float32)[:-1],
-            target_coarse=coarse[1:],
-            target_fine=fine[1:],
-            local=local,
-        )
-
-
-class WavesDataset(chainer.dataset.DatasetMixin):
-    def __init__(
-            self,
-            inputs: List[Input],
-            sampling_length: int,
-    ) -> None:
-        self.inputs = inputs
-        self.sampling_length = sampling_length
-
-    def __len__(self):
-        return len(self.inputs)
-
-    def get_example(self, i):
-        wave = self.inputs[i].wave
-        local = self.inputs[i].local
-        assert len(wave) == len(local)
-        assert local.ndim == 2
-
-        offset = np.random.randint(len(wave) - self.sampling_length)
-        wave = wave[offset:offset + self.sampling_length]
-        local = local[offset:offset + self.sampling_length]
+        silence = np.zeros(shape=(length,), dtype=np.bool)
 
         coarse, fine = encode_16bit(wave)
         return dict(
@@ -133,6 +71,48 @@ class WavesDataset(chainer.dataset.DatasetMixin):
             target_coarse=coarse[1:],
             target_fine=fine[1:],
             local=local[1:],
+            silence=silence[1:],
+        )
+
+
+class WavesDataset(chainer.dataset.DatasetMixin):
+    def __init__(
+            self,
+            inputs: List[Input],
+            sampling_rate: int,
+            sampling_length: int,
+    ) -> None:
+        self.inputs = inputs
+        self.sampling_rate = sampling_rate
+        self.sampling_length = sampling_length
+
+    def __len__(self):
+        return len(self.inputs)
+
+    def get_example(self, i):
+        sr = self.sampling_rate
+        sl = self.sampling_length
+
+        wave = self.inputs[i].wave.wave
+        local_data = self.inputs[i].local
+
+        length = len(local_data.array) * (sr // local_data.rate)
+        assert abs(length - len(wave)) < sr
+
+        offset = np.random.randint(length - sl)
+
+        wave = wave[offset:offset + sl]
+        local = local_data.resample(sr, index=offset, length=sl)
+        silence = np.squeeze(self.inputs[i].silence.resample(sr, index=offset, length=sl))
+
+        coarse, fine = encode_16bit(wave)
+        return dict(
+            input_coarse=normalize(coarse).astype(np.float32),
+            input_fine=normalize(fine).astype(np.float32)[:-1],
+            target_coarse=coarse[1:],
+            target_fine=fine[1:],
+            local=local[1:],
+            silence=silence[1:],
         )
 
 
@@ -148,25 +128,19 @@ def create(config: DatasetConfig):
 
     wave_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_wave_glob))}
 
-    if config.input_silence_glob is not None:
-        silence_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))}
-        assert set(wave_paths.keys()) == set(silence_paths.keys())
-    else:
-        silence_paths = None
+    silence_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))}
+    assert set(wave_paths.keys()) == set(silence_paths.keys())
 
-    if config.input_local_glob is not None:
-        local_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_local_glob))}
-        assert set(wave_paths.keys()) == set(local_paths.keys())
-    else:
-        local_paths = None
+    local_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_local_glob))}
+    assert set(wave_paths.keys()) == set(local_paths.keys())
 
     fn_list = sorted(wave_paths.keys())
 
     inputs = [
-        load_input(
+        Input.load(
             path_wave=wave_paths[fn],
-            path_silence=silence_paths[fn] if silence_paths is not None else None,
-            path_local=local_paths[fn] if local_paths is not None else None,
+            path_silence=silence_paths[fn],
+            path_local=local_paths[fn],
         )
         for fn in fn_list
     ]
@@ -179,6 +153,7 @@ def create(config: DatasetConfig):
 
     _Dataset = partial(
         WavesDataset,
+        sampling_rate=config.sampling_rate,
         sampling_length=config.sampling_length,
     )
     return {

@@ -2,7 +2,9 @@ import unittest
 
 import numpy as np
 
-from yukarin_autoreg.dataset import WavesDataset, decode_16bit, encode_16bit, normalize, Input
+from yukarin_autoreg.dataset import Input, WavesDataset, decode_16bit, encode_16bit, normalize
+from yukarin_autoreg.sampling_data import SamplingData
+from yukarin_autoreg.wave import Wave
 
 batch_size = 2
 length = 3
@@ -61,6 +63,7 @@ class TestNormalize(unittest.TestCase):
 class TestWavesDataset(unittest.TestCase):
     num = 256
     sampling_length = 16
+    sampling_rate = 8000
 
     def setUp(self):
         waves = [
@@ -69,14 +72,16 @@ class TestWavesDataset(unittest.TestCase):
         ]
         inputs = [
             Input(
-                wave=w,
-                local=np.empty((len(w), 0)),
+                wave=Wave(wave=w, sampling_rate=self.sampling_rate),
+                local=SamplingData(array=np.empty((len(w), 0)), rate=self.sampling_rate),
+                silence=SamplingData(array=np.zeros((len(w),), dtype=bool), rate=self.sampling_rate),
             )
             for w in waves
         ]
         self.dataset = WavesDataset(
             inputs,
             sampling_length=self.sampling_length,
+            sampling_rate=self.sampling_rate,
         )
 
     def test_init(self):
