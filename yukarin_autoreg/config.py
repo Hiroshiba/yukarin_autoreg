@@ -29,7 +29,7 @@ class LossConfig(NamedTuple):
 
 class TrainConfig(NamedTuple):
     batchsize: int
-    gpu: int
+    gpu: List[int]
     log_iteration: int
     snapshot_iteration: int
     stop_iteration: int

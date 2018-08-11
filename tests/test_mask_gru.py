@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from yukarin_autoreg.model import MaskGRU
+from yukarin_autoreg.network import MaskGRU
 
 batch_size = 2
 length = 3

@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from yukarin_autoreg.config import ModelConfig
-from yukarin_autoreg.model import WaveRNN
+from yukarin_autoreg.network import WaveRNN
 
 batch_size = 2
 length = 3

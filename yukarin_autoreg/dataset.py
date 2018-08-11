@@ -1,7 +1,7 @@
 import glob
 from functools import partial
 from pathlib import Path
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Union
 
 import chainer
 import numpy as np
@@ -16,16 +16,17 @@ class Input(NamedTuple):
     silence: SamplingData
     local: SamplingData
 
-    @staticmethod
-    def load(
-            path_wave: Path,
-            path_silence: Path,
-            path_local: Path,
-    ):
+
+class LazyInput(NamedTuple):
+    path_wave: Path
+    path_silence: Path
+    path_local: Path
+
+    def generate(self):
         return Input(
-            wave=Wave.load(path_wave),
-            silence=SamplingData.load(path_silence),
-            local=SamplingData.load(path_local),
+            wave=Wave.load(self.path_wave),
+            silence=SamplingData.load(self.path_silence),
+            local=SamplingData.load(self.path_local),
         )
 
 
@@ -78,7 +79,7 @@ class SignWaveDataset(chainer.dataset.DatasetMixin):
 class WavesDataset(chainer.dataset.DatasetMixin):
     def __init__(
             self,
-            inputs: List[Input],
+            inputs: List[Union[Input, LazyInput]],
             sampling_rate: int,
             sampling_length: int,
     ) -> None:
@@ -90,11 +91,15 @@ class WavesDataset(chainer.dataset.DatasetMixin):
         return len(self.inputs)
 
     def get_example(self, i):
+        input = self.inputs[i]
+        if isinstance(input, LazyInput):
+            input = input.generate()
+
         sr = self.sampling_rate
         sl = self.sampling_length
 
-        wave = self.inputs[i].wave.wave
-        local_data = self.inputs[i].local
+        wave = input.wave.wave
+        local_data = input.local
 
         length = len(local_data.array) * (sr // local_data.rate)
         assert abs(length - len(wave)) < sr
@@ -103,7 +108,7 @@ class WavesDataset(chainer.dataset.DatasetMixin):
 
         wave = wave[offset:offset + sl]
         local = local_data.resample(sr, index=offset, length=sl)
-        silence = np.squeeze(self.inputs[i].silence.resample(sr, index=offset, length=sl))
+        silence = np.squeeze(input.silence.resample(sr, index=offset, length=sl))
 
         coarse, fine = encode_16bit(wave)
         return dict(
@@ -137,7 +142,7 @@ def create(config: DatasetConfig):
     fn_list = sorted(wave_paths.keys())
 
     inputs = [
-        Input.load(
+        LazyInput(
             path_wave=wave_paths[fn],
             path_silence=silence_paths[fn],
             path_local=local_paths[fn],

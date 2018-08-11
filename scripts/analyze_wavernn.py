@@ -10,7 +10,7 @@ from chainer import cuda
 
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.dataset import encode_16bit, normalize
-from yukarin_autoreg.model import create_predictor
+from yukarin_autoreg.network import create_predictor
 from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.wave import Wave
 

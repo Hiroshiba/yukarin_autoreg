@@ -7,8 +7,9 @@ from chainer.iterators import MultiprocessIterator
 
 from yukarin_autoreg.config import LossConfig, ModelConfig
 from yukarin_autoreg.dataset import SignWaveDataset, encode_16bit, normalize
-from yukarin_autoreg.model import WaveRNN
-from yukarin_autoreg.updater import Updater
+from yukarin_autoreg.network import WaveRNN
+from yukarin_autoreg.model import Model
+from chainer.training.updaters import StandardUpdater
 
 sampling_rate = 8000
 sampling_length = 880
@@ -66,17 +67,16 @@ class TestTrainingWaveRNN(unittest.TestCase):
             bit_size=batch_size,
             local_size=0,
         ))
-        optimizer = _create_optimizer(wave_rnn)
+        model = Model(wave_rnn)
+        optimizer = _create_optimizer(model)
         dataset = SignWaveDataset(sampling_rate=sampling_rate, sampling_length=sampling_length)
         train_iter = MultiprocessIterator(dataset, batch_size)
 
         if gpu is not None:
-            wave_rnn.to_gpu(gpu)
+            model.to_gpu(gpu)
 
         converter = partial(chainer.dataset.convert.concat_examples)
-        self.updater = Updater(
-            loss_config=LossConfig(),
-            predictor=wave_rnn,
+        self.updater = StandardUpdater(
             device=gpu,
             iterator=train_iter,
             optimizer=optimizer,
@@ -84,7 +84,7 @@ class TestTrainingWaveRNN(unittest.TestCase):
         )
 
         self.reporter = chainer.Reporter()
-        self.reporter.add_observer('main', wave_rnn)
+        self.reporter.add_observer('main', model)
 
     def test_init(self):
         pass
@@ -113,16 +113,15 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
             bit_size=batch_size,
             local_size=0,
         ))
-        optimizer = _create_optimizer(wave_rnn)
+        model = Model(wave_rnn)
+        optimizer = _create_optimizer(model)
         train_iter = MultiprocessIterator(RandomDataset(), batch_size)
 
         if gpu is not None:
-            wave_rnn.to_gpu(gpu)
+            model.to_gpu(gpu)
 
         converter = partial(chainer.dataset.convert.concat_examples)
-        self.updater = Updater(
-            loss_config=LossConfig(),
-            predictor=wave_rnn,
+        self.updater = StandardUpdater(
             device=gpu,
             iterator=train_iter,
             optimizer=optimizer,
@@ -130,7 +129,7 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
         )
 
         self.reporter = chainer.Reporter()
-        self.reporter.add_observer('main', wave_rnn)
+        self.reporter.add_observer('main', model)
 
     def test_init(self):
         pass
@@ -159,16 +158,15 @@ class TestWOMaskTrainingWaveRNN(unittest.TestCase):
             bit_size=batch_size,
             local_size=0,
         ), disable_mask=True)
-        optimizer = _create_optimizer(wave_rnn)
+        model = Model(wave_rnn)
+        optimizer = _create_optimizer(model)
         train_iter = MultiprocessIterator(RandomDataset(), batch_size)
 
         if gpu is not None:
-            wave_rnn.to_gpu(gpu)
+            model.to_gpu(gpu)
 
         converter = partial(chainer.dataset.convert.concat_examples)
-        self.updater = Updater(
-            loss_config=LossConfig(),
-            predictor=wave_rnn,
+        self.updater = StandardUpdater(
             device=gpu,
             iterator=train_iter,
             optimizer=optimizer,
@@ -176,7 +174,7 @@ class TestWOMaskTrainingWaveRNN(unittest.TestCase):
         )
 
         self.reporter = chainer.Reporter()
-        self.reporter.add_observer('main', wave_rnn)
+        self.reporter.add_observer('main', model)
 
     def test_init(self):
         pass
@@ -205,16 +203,15 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
             bit_size=batch_size,
             local_size=2,
         ))
-        optimizer = _create_optimizer(wave_rnn)
+        model = Model(wave_rnn)
+        optimizer = _create_optimizer(model)
         train_iter = MultiprocessIterator(LocalRandomDataset(), batch_size)
 
         if gpu is not None:
-            wave_rnn.to_gpu(gpu)
+            model.to_gpu(gpu)
 
         converter = partial(chainer.dataset.convert.concat_examples)
-        self.updater = Updater(
-            loss_config=LossConfig(),
-            predictor=wave_rnn,
+        self.updater = StandardUpdater(
             device=gpu,
             iterator=train_iter,
             optimizer=optimizer,
@@ -222,7 +219,7 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
         )
 
         self.reporter = chainer.Reporter()
-        self.reporter.add_observer('main', wave_rnn)
+        self.reporter.add_observer('main', model)
 
     def test_init(self):
         pass

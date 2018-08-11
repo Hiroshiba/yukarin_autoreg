@@ -1,20 +1,22 @@
 import argparse
+import multiprocessing
 from copy import copy
 from functools import partial
 from pathlib import Path
 from typing import Any, Dict
 
-from chainer import cuda, optimizers, training
+from chainer import optimizers, training
 from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions
+from chainer.training.updaters import MultiprocessParallelUpdater
 from tb_chainer import SummaryWriter
 
 from utility.chainer_utility import TensorBoardReport
 from yukarin_autoreg.config import create_from_json
 from yukarin_autoreg.dataset import create as create_dataset
-from yukarin_autoreg.model import create_predictor
-from yukarin_autoreg.updater import Updater
+from yukarin_autoreg.model import Model
+from yukarin_autoreg.network import create_predictor
 
 parser = argparse.ArgumentParser()
 parser.add_argument('config_json_path', type=Path)
@@ -27,15 +29,21 @@ config.save_as_json((arguments.output / 'config.json').absolute())
 
 # model
 predictor = create_predictor(config.model)
-if config.train.gpu >= 0:
-    predictor.to_gpu(config.train.gpu)
-    cuda.get_device_from_id(config.train.gpu).use()
+model = Model(predictor)
 
 # dataset
 dataset = create_dataset(config.dataset)
-train_iter = MultiprocessIterator(dataset['train'], config.train.batchsize)
-test_iter = MultiprocessIterator(dataset['test'], config.train.batchsize, repeat=False, shuffle=False)
-train_eval_iter = MultiprocessIterator(dataset['train_eval'], config.train.batchsize, repeat=False, shuffle=False)
+batchsize_devided = config.train.batchsize // len(config.train.gpu)
+train_iters = [
+    MultiprocessIterator(
+        dataset['train'],
+        batchsize_devided,
+        n_processes=multiprocessing.cpu_count() // len(config.train.gpu)
+    )
+    for _ in config.train.gpu
+]
+test_iter = MultiprocessIterator(dataset['test'], batchsize_devided, repeat=False, shuffle=False)
+train_eval_iter = MultiprocessIterator(dataset['train_eval'], batchsize_devided, repeat=False, shuffle=False)
 
 
 # optimizer
@@ -54,17 +62,15 @@ def create_optimizer(model):
     return optimizer
 
 
-optimizer = create_optimizer(predictor)
+optimizer = create_optimizer(model)
 
 # updater
 converter = partial(convert.concat_examples)
-updater = Updater(
-    loss_config=config.loss,
-    predictor=predictor,
-    device=config.train.gpu,
-    iterator=train_iter,
+updater = MultiprocessParallelUpdater(
+    iterators=train_iters,
     optimizer=optimizer,
     converter=converter,
+    devices=config.train.gpu,
 )
 
 # trainer
@@ -75,9 +81,9 @@ trigger_stop = (config.train.stop_iteration, 'iteration') if config.train.stop_i
 trainer = training.Trainer(updater, stop_trigger=trigger_stop, out=arguments.output)
 tb_writer = SummaryWriter(Path(arguments.output))
 
-ext = extensions.Evaluator(test_iter, predictor, converter, device=config.train.gpu, eval_func=updater.forward)
+ext = extensions.Evaluator(test_iter, model, converter, device=config.train.gpu[0])
 trainer.extend(ext, name='test', trigger=trigger_log)
-ext = extensions.Evaluator(train_eval_iter, predictor, converter, device=config.train.gpu, eval_func=updater.forward)
+ext = extensions.Evaluator(train_eval_iter, model, converter, device=config.train.gpu[0])
 trainer.extend(ext, name='train', trigger=trigger_log)
 
 ext = extensions.snapshot_object(predictor, filename='main_{.updater.iteration}.npz')
