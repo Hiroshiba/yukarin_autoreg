@@ -1,5 +1,5 @@
 numpy
-chainer
+chainer<5.0.0
 librosa
 pysptk
 matplotlib
