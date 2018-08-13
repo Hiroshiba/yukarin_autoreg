@@ -4,11 +4,19 @@ import chainer.links as L
 import numpy as np
 
 from yukarin_autoreg.config import ModelConfig
+from yukarin_autoreg.utility.chainer_initializer_utility import PossibleOrthogonal
+from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepGRU
 
 
-class MaskGRU(L.NStepGRU):
-    def __init__(self, in_size: int, out_size: int, disable_mask=False) -> None:
-        super().__init__(n_layers=1, in_size=in_size, out_size=out_size, dropout=0.)
+class MaskGRU(ModifiedNStepGRU):
+    def __init__(self, in_size: int, out_size: int, initialW=None, disable_mask=False) -> None:
+        super().__init__(
+            n_layers=1,
+            in_size=in_size,
+            out_size=out_size,
+            dropout=0.,
+            initialW=initialW,
+        )
         self.in_size = in_size
         self.disable_mask = disable_mask
         self.mask_w = None
@@ -139,15 +147,21 @@ class MaskGRU(L.NStepGRU):
 class WaveRNN(chainer.Chain):
     def __init__(self, config: ModelConfig, disable_mask=False) -> None:
         super().__init__()
+        initialW = PossibleOrthogonal()
 
         self.half_bins = 2 ** (config.bit_size // 2)
         self.half_hidden_size = config.hidden_size // 2
         with self.init_scope():
-            self.R = MaskGRU(in_size=3 + config.local_size, out_size=config.hidden_size, disable_mask=disable_mask)
-            self.O1 = L.Linear(self.half_hidden_size, self.half_hidden_size)
-            self.O2 = L.Linear(self.half_hidden_size, self.half_bins)
-            self.O3 = L.Linear(self.half_hidden_size, self.half_hidden_size)
-            self.O4 = L.Linear(self.half_hidden_size, self.half_bins)
+            self.R = MaskGRU(
+                in_size=3 + config.local_size,
+                out_size=config.hidden_size,
+                initialW=initialW,
+                disable_mask=disable_mask,
+            )
+            self.O1 = L.Linear(self.half_hidden_size, self.half_hidden_size, initialW=initialW)
+            self.O2 = L.Linear(self.half_hidden_size, self.half_bins, initialW=initialW)
+            self.O3 = L.Linear(self.half_hidden_size, self.half_hidden_size, initialW=initialW)
+            self.O4 = L.Linear(self.half_hidden_size, self.half_bins, initialW=initialW)
 
     def __call__(self, c_array, f_array, l_array, hidden_coarse=None, hidden_fine=None):
         """

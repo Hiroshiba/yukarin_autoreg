@@ -5,11 +5,11 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Dict
 
-from chainer import optimizers, training
+from chainer import optimizers, training, cuda
 from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions
-from chainer.training.updaters import MultiprocessParallelUpdater
+from chainer.training.updaters import MultiprocessParallelUpdater, StandardUpdater
 from tb_chainer import SummaryWriter
 
 from utility.chainer_utility import TensorBoardReport
@@ -30,6 +30,10 @@ config.save_as_json((arguments.output / 'config.json').absolute())
 # model
 predictor = create_predictor(config.model)
 model = Model(predictor)
+
+if len(config.train.gpu) == 1:
+    model.to_gpu(config.train.gpu[0])
+    cuda.get_device_from_id(config.train.gpu[0]).use()
 
 # dataset
 dataset = create_dataset(config.dataset)
@@ -66,12 +70,20 @@ optimizer = create_optimizer(model)
 
 # updater
 converter = partial(convert.concat_examples)
-updater = MultiprocessParallelUpdater(
-    iterators=train_iters,
-    optimizer=optimizer,
-    converter=converter,
-    devices=config.train.gpu,
-)
+if len(config.train.gpu) <= 1:
+    updater = StandardUpdater(
+        iterator=train_iters[0],
+        optimizer=optimizer,
+        converter=converter,
+        device=config.train.gpu[0],
+    )
+else:
+    updater = MultiprocessParallelUpdater(
+        iterators=train_iters,
+        optimizer=optimizer,
+        converter=converter,
+        devices=config.train.gpu,
+    )
 
 # trainer
 trigger_log = (config.train.log_iteration, 'iteration')
