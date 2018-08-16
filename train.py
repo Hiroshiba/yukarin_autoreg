@@ -5,7 +5,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Dict
 
-from chainer import optimizers, training, cuda
+from chainer import cuda, optimizers, training
 from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions
@@ -15,8 +15,7 @@ from tb_chainer import SummaryWriter
 from utility.chainer_utility import TensorBoardReport
 from yukarin_autoreg.config import create_from_json
 from yukarin_autoreg.dataset import create as create_dataset
-from yukarin_autoreg.model import Model
-from yukarin_autoreg.network import create_predictor
+from yukarin_autoreg.model import Model, create_predictor
 
 parser = argparse.ArgumentParser()
 parser.add_argument('config_json_path', type=Path)

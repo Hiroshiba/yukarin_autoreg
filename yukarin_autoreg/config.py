@@ -21,6 +21,7 @@ class ModelConfig(NamedTuple):
     hidden_size: int
     bit_size: int
     local_size: int
+    using_modified_model: bool
 
 
 class LossConfig(NamedTuple):
@@ -80,6 +81,7 @@ def create_from_json(s: Union[str, Path]):
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
             local_size=d['model']['local_size'],
+            using_modified_model=d['model']['using_modified_model'],
         ),
         loss=LossConfig(
         ),
@@ -119,3 +121,6 @@ def backward_compatible(d: Dict):
 
     if 'local_size' not in d['model']:
         d['model']['local_size'] = 0
+
+    if 'using_modified_model' not in d['model']:
+        d['model']['using_modified_model'] = False

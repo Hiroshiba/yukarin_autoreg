@@ -9,6 +9,7 @@ import librosa
 import numpy as np
 import tqdm
 
+from utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave
 
 
@@ -81,6 +82,7 @@ def main():
     threshold: float = config.threshold
 
     output_directory.mkdir(exist_ok=True)
+    save_arguments(config, output_directory / 'arguments.json')
 
     paths = [Path(p) for p in glob.glob(str(input_glob))]
     _process = partial(

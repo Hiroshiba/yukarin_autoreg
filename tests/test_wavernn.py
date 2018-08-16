@@ -2,7 +2,6 @@ import unittest
 
 import numpy as np
 
-from yukarin_autoreg.config import ModelConfig
 from yukarin_autoreg.network import WaveRNN
 
 batch_size = 2
@@ -13,11 +12,18 @@ local_size = 5
 
 class TestWaveRNN(unittest.TestCase):
     def setUp(self):
-        self.wave_rnn = WaveRNN(config=ModelConfig(
+        self.wave_rnn = WaveRNN(
             hidden_size=hidden_size,
             bit_size=16,
             local_size=local_size,
-        ))
+        )
+
+        # set 'b'
+        for p in self.wave_rnn.params():
+            if 'b' not in p.name:
+                continue
+            p.data = np.random.rand(*p.shape).astype(p.dtype)
+
         self.c_array = np.random.rand(batch_size, length).astype(np.float32)
         self.f_array = np.random.rand(batch_size, length).astype(np.float32)
         self.l_array = np.random.rand(batch_size, length, local_size).astype(np.float32)

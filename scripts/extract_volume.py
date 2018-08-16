@@ -8,6 +8,7 @@ import librosa
 import numpy as np
 import tqdm
 
+from utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave
 
 
@@ -27,8 +28,8 @@ def process(
 
     rate = sampling_rate // hop_length
 
-    out = output_directory / (path.stem + '.npz')
-    np.savez(str(out), array=db, rate=rate)
+    out = output_directory / (path.stem + '.npy')
+    np.save(str(out), dict(array=db, rate=rate))
 
 
 def main():
@@ -47,6 +48,7 @@ def main():
     hop_length: int = config.hop_length
 
     output_directory.mkdir(exist_ok=True)
+    save_arguments(config, output_directory / 'arguments.json')
 
     paths = [Path(p) for p in glob.glob(str(input_glob))]
     _process = partial(

@@ -3,7 +3,24 @@ import chainer.functions as F
 import numpy as np
 from chainer import Chain
 
-from yukarin_autoreg.network import WaveRNN
+from yukarin_autoreg.config import ModelConfig
+from yukarin_autoreg.network import ModifiedWaveRNN, WaveRNN
+
+
+def create_predictor(config: ModelConfig):
+    if not config.using_modified_model:
+        predictor = WaveRNN(
+            bit_size=config.bit_size,
+            hidden_size=config.hidden_size,
+            local_size=config.local_size,
+        )
+    else:
+        predictor = ModifiedWaveRNN(
+            bit_size=config.bit_size,
+            hidden_size=config.hidden_size,
+            local_size=config.local_size,
+        )
+    return predictor
 
 
 class Model(Chain):
