@@ -4,6 +4,7 @@ import re
 from functools import partial
 from itertools import starmap
 from pathlib import Path
+from typing import List
 
 import numpy as np
 
@@ -15,21 +16,23 @@ from yukarin_autoreg.wave import Wave
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', '-md', type=Path)
-parser.add_argument('--model_iteration', '-mi', type=int)
+parser.add_argument('--model_iterations', '-mi', nargs='*', type=int)
 parser.add_argument('--model_config', '-mc', type=Path)
 parser.add_argument('--time_length', '-tl', type=float, default=1)
 parser.add_argument('--num_test', '-nt', type=int, default=5)
 parser.add_argument('--sampling_maximum', '-sm', action='store_true')
+parser.add_argument('--num_mean_model', '-nmm', type=int, default=1)
 parser.add_argument('--output_dir', '-o', type=Path, default='./output/')
 parser.add_argument('--gpu', type=int)
 arguments = parser.parse_args()
 
 model_dir: Path = arguments.model_dir
-model_iteration: int = arguments.model_iteration
+model_iterations: List[int] = arguments.model_iterations
 model_config: Path = arguments.model_config
 time_length: int = arguments.time_length
 num_test: int = arguments.num_test
 sampling_maximum: bool = arguments.sampling_maximum
+num_mean_model: int = arguments.num_mean_model
 output_dir: Path = arguments.output_dir
 gpu: int = arguments.gpu
 
@@ -44,14 +47,19 @@ def _extract_number(f):
     return int(s[-1]) if s else -1
 
 
-def _get_predictor_model_path(model_dir: Path, iteration: int = None, prefix: str = 'main_'):
-    if iteration is None:
+def _get_predictor_model_paths(
+        model_dir: Path,
+        iterations: List[int] = None,
+        num_mean_model: int = None,
+        prefix: str = 'main_',
+):
+    if iterations is None:
+        assert isinstance(num_mean_model, int)
         paths = model_dir.glob(prefix + '*.npz')
-        model_path = list(sorted(paths, key=_extract_number))[-1]
+        model_paths = list(sorted(paths, key=_extract_number))[-num_mean_model:]
     else:
-        fn = prefix + '{}.npz'.format(iteration)
-        model_path = model_dir / fn
-    return model_path
+        model_paths = [model_dir / (prefix + '{}.npz'.format(i)) for i in iterations]
+    return model_paths
 
 
 def process_wo_context(local_path: Path, generator: Generator, sampling_rate: int, postfix='_woc'):
@@ -84,7 +92,7 @@ def process_resume(wave_path: Path, local_path: Path, generator: Generator, samp
             hidden_coarse=hc,
             hidden_fine=hf,
         )
-        wave.save(output / wave_path.name)
+        wave.save(output / (wave_path.stem + '.wav'))
     except:
         import traceback
         traceback.print_exc()
@@ -94,13 +102,17 @@ def main():
     save_arguments(arguments, output / 'arguments.json')
 
     config = create_config(model_config)
-    model = _get_predictor_model_path(model_dir, model_iteration)
+    models = _get_predictor_model_paths(
+        model_dir=model_dir,
+        iterations=model_iterations,
+        num_mean_model=num_mean_model,
+    )
     generator = Generator(
         config,
-        model,
+        models,
         gpu=gpu,
     )
-    print(f'Loaded generator "{model}"')
+    print(f'Loaded generator "{models}"')
 
     if config.dataset.input_wave_glob is not None:
         wave_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_wave_glob))])

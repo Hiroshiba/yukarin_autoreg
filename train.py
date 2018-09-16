@@ -12,7 +12,7 @@ from chainer.training import extensions
 from chainer.training.updaters import MultiprocessParallelUpdater, StandardUpdater
 from tb_chainer import SummaryWriter
 
-from utility.chainer_utility import TensorBoardReport
+from utility.chainer_extension_utility import TensorBoardReport
 from yukarin_autoreg.config import create_from_json
 from yukarin_autoreg.dataset import create as create_dataset
 from yukarin_autoreg.model import Model, create_predictor

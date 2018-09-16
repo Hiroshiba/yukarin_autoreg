@@ -5,7 +5,6 @@ from functools import partial
 from pathlib import Path
 from typing import Optional, Tuple
 
-import librosa
 import numpy as np
 import tqdm
 
@@ -24,8 +23,8 @@ def process(
     if clipping_range is not None:
         w = np.clip(w, clipping_range[0], clipping_range[1]) / np.max(np.abs(clipping_range))
 
-    out = output_directory / (path.stem + '.wav')
-    librosa.output.write_wav(str(out), w, sr=sampling_rate)
+    out = output_directory / (path.stem + '.npy')
+    np.save(str(out), dict(array=w, rate=sampling_rate))
 
 
 def main():

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List, Union
 
 import chainer
 import numpy as np
@@ -7,6 +8,7 @@ from chainer import cuda
 from yukarin_autoreg.config import Config
 from yukarin_autoreg.dataset import decode_16bit, encode_16bit, normalize
 from yukarin_autoreg.model import create_predictor
+from yukarin_autoreg.utility.chainer_link_utility import mean_params
 from yukarin_autoreg.wave import Wave
 
 
@@ -14,15 +16,26 @@ class Generator(object):
     def __init__(
             self,
             config: Config,
-            model_path: Path,
+            model_path: Union[Path, List[Path]],
             gpu: int = None,
     ) -> None:
         self.config = config
         self.model_path = model_path
         self.gpu = gpu
 
-        self.model = model = create_predictor(config.model)
-        chainer.serializers.load_npz(str(model_path), model)
+        if isinstance(model_path, Path):
+            self.model = model = create_predictor(config.model)
+            chainer.serializers.load_npz(str(model_path), model)
+        else:
+            # mean weights
+            models = []
+            for p in model_path:
+                model = create_predictor(config.model)
+                chainer.serializers.load_npz(str(p), model)
+                models.append(model)
+            self.model = model = create_predictor(config.model)
+            mean_params(models, model)
+
         if self.gpu is not None:
             model.to_gpu(self.gpu)
             cuda.get_device_from_id(self.gpu).use()
