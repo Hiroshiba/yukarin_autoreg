@@ -3,8 +3,16 @@ import chainer.functions as F
 import chainer.links as L
 import numpy as np
 
-from yukarin_autoreg.network.mask_gru import MaskGRU
 from yukarin_autoreg.utility.chainer_initializer_utility import PossibleOrthogonal
+from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepGRU
+
+
+def _call_1step(net: ModifiedNStepGRU, hidden, input):
+    if hidden is not None:
+        hidden = hidden[np.newaxis]
+    _, hidden = net(hx=hidden, xs=F.separate(input, axis=0))
+    hidden = F.stack(hidden, axis=0)
+    return hidden
 
 
 class WaveRNN(chainer.Chain):
@@ -13,7 +21,6 @@ class WaveRNN(chainer.Chain):
             bit_size: int,
             hidden_size: int,
             local_size: int,
-            disable_mask=False,
     ) -> None:
         super().__init__()
         initialW = PossibleOrthogonal()
@@ -21,11 +28,19 @@ class WaveRNN(chainer.Chain):
         self.half_bins = 2 ** (bit_size // 2)
         self.half_hidden_size = hidden_size // 2
         with self.init_scope():
-            self.R = MaskGRU(
-                in_size=3 + local_size,
-                out_size=hidden_size,
+            self.R_coarse = ModifiedNStepGRU(
+                n_layers=1,
+                in_size=2 + local_size,
+                out_size=self.half_hidden_size,
+                dropout=0.,
                 initialW=initialW,
-                disable_mask=disable_mask,
+            )
+            self.R_fine = ModifiedNStepGRU(
+                n_layers=1,
+                in_size=3 + local_size,
+                out_size=self.half_hidden_size,
+                dropout=0.,
+                initialW=initialW,
             )
             self.O1 = L.Linear(self.half_hidden_size, self.half_hidden_size, initialW=initialW)
             self.O2 = L.Linear(self.half_hidden_size, self.half_bins, initialW=initialW)
@@ -76,14 +91,12 @@ class WaveRNN(chainer.Chain):
         length = c_array.shape[1]  # N
 
         # shape: (batch_size, N, L + 1)
-        x_array = F.concat((c_array[:, :, np.newaxis], f_array[:, :, np.newaxis], l_array), axis=2)
+        xc_array = F.concat((c_array[:, :, np.newaxis], f_array[:, :, np.newaxis], l_array), axis=2)
+        xf_array = F.concat((xc_array, curr_c_array[:, :, np.newaxis]), axis=2)
 
-        hidden_coarse, hidden_fine = self.R(
-            x_array=x_array,
-            curr_c_array=curr_c_array,
-            hidden_coarse=hidden_coarse,
-            hidden_fine=hidden_fine,
-        )  # shape: (batch_size, N, half_hidden_size)
+        # shape: (batch_size, N, half_hidden_size)
+        hidden_coarse = _call_1step(self.R_coarse, hidden_coarse, xc_array)
+        hidden_fine = _call_1step(self.R_fine, hidden_fine, xf_array)
 
         new_hidden_coarse = hidden_coarse[:, -1, :]
         new_hidden_fine = hidden_fine[:, -1, :]
@@ -115,13 +128,14 @@ class WaveRNN(chainer.Chain):
             hidden_coarse: float (batch_size, half_hidden_size)
             hidden_fine: float (batch_size, half_hidden_size)
         """
-        prev_x = F.concat((prev_c[:, np.newaxis], prev_f[:, np.newaxis], prev_l), axis=1)
+        prev_x = F.concat((prev_c[:, np.newaxis], prev_f[:, np.newaxis], prev_l), axis=1)  # shape: (batch_size, L+1)
+        prev_x = F.expand_dims(prev_x, axis=1)  # shape: (batch_size, 1, L+1)
 
-        new_hidden_coarse = self.R.onestep_coarse(
-            x_array=prev_x,
-            hidden_coarse=hidden_coarse,
-            hidden_fine=hidden_fine,
-        )  # shape: (batch_size, half_hidden_size)
+        new_hidden_coarse = _call_1step(
+            self.R_coarse,
+            hidden_coarse,
+            prev_x,
+        )[:, -1]  # shape: (batch_size, half_hidden_size)
 
         out_c = self.O2(F.relu(self.O1(new_hidden_coarse)))  # shape: (batch_size, ?)
 
@@ -130,12 +144,11 @@ class WaveRNN(chainer.Chain):
         else:
             curr_c = prev_corr_c
 
-        new_hidden_fine = self.R.onestep_fine(
-            x_array=prev_x,
-            curr_c_array=curr_c,
-            hidden_coarse=hidden_coarse,
-            hidden_fine=hidden_fine,
-        )  # shape: (batch_size, half_hidden_size)
+        new_hidden_fine = _call_1step(
+            self.R_fine,
+            hidden_fine,
+            F.concat((prev_x, curr_c[:, np.newaxis, np.newaxis]), axis=2),
+        )[:, -1]  # shape: (batch_size, half_hidden_size)
 
         out_f = self.O4(F.relu(self.O3(new_hidden_fine)))  # shape: (batch_size, ?)
         return out_c, out_f, new_hidden_coarse, new_hidden_fine

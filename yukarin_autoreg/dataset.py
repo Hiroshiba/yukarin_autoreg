@@ -104,10 +104,13 @@ class WavesDataset(chainer.dataset.DatasetMixin):
         length = len(local_data.array) * (sr // local_data.rate)
         assert abs(length - len(wave)) < sr
 
-        offset = np.random.randint(length - sl)
+        l_length = length // (sr // local_data.rate)
+        l_sl = sl // (sr // local_data.rate)
+        l_offset = np.random.randint(l_length - l_sl)
+        offset = l_offset * (sr // local_data.rate)
 
         wave = wave[offset:offset + sl]
-        local = local_data.resample(sr, index=offset, length=sl)
+        local = local_data.array[l_offset:l_offset + l_sl]
         silence = np.squeeze(input.silence.resample(sr, index=offset, length=sl))
 
         coarse, fine = encode_16bit(wave)
@@ -116,7 +119,7 @@ class WavesDataset(chainer.dataset.DatasetMixin):
             input_fine=normalize(fine).astype(np.float32)[:-1],
             target_coarse=coarse[1:],
             target_fine=fine[1:],
-            local=local[1:],
+            local=local,
             silence=silence[1:],
         )
 
