@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from yukarin_autoreg.dataset import Input, WavesDataset, decode_16bit, encode_16bit, normalize
+from yukarin_autoreg.dataset import BaseWaveDataset, Input, WavesDataset, decode_16bit, encode_16bit, normalize
 from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.wave import Wave
 
@@ -60,6 +60,44 @@ class TestNormalize(unittest.TestCase):
         self.assertEqual(normalize(255), 1)
 
 
+class TestBaseWaveDataset(unittest.TestCase):
+    sampling_length = 16
+    sampling_rate = 8000
+    local_sampling_rate = 2000
+
+    def setUp(self):
+        self.wave = Wave(wave=np.arange(self.sampling_rate * 10), sampling_rate=self.sampling_rate)
+        self.local = SamplingData(array=np.arange(self.local_sampling_rate * 10), rate=self.local_sampling_rate)
+        self.silence = SamplingData(array=np.zeros((self.sampling_rate * 10,), dtype=bool), rate=self.sampling_rate)
+        self.dataset = BaseWaveDataset(
+            sampling_length=self.sampling_length,
+        )
+
+    def test_get_local(self):
+        scale = self.sampling_rate // self.local_sampling_rate
+
+        for _ in range(10):
+            wave, silence, local = self.dataset.extract_input(
+                self.sampling_length,
+                wave_data=self.wave,
+                silence_data=self.silence,
+                local_data=self.local,
+            )
+            self.assertEqual(len(wave), self.sampling_length)
+            self.assertEqual(len(silence), self.sampling_length)
+            self.assertEqual(len(local), self.sampling_length // scale)
+
+            self.assertEqual(wave[0] % scale, 0)
+
+            d = self.dataset.convert_to_dict(wave, silence, local)
+            self.assertEqual(len(d['input_coarse']), self.sampling_length)
+            self.assertEqual(len(d['input_fine']), self.sampling_length - 1)
+            self.assertEqual(len(d['target_coarse']), self.sampling_length - 1)
+            self.assertEqual(len(d['target_fine']), self.sampling_length - 1)
+            self.assertEqual(len(d['silence']), self.sampling_length - 1)
+            self.assertEqual(len(d['local']), self.sampling_length // scale)
+
+
 class TestWavesDataset(unittest.TestCase):
     num = 256
     sampling_length = 16
@@ -81,11 +119,7 @@ class TestWavesDataset(unittest.TestCase):
         self.dataset = WavesDataset(
             inputs,
             sampling_length=self.sampling_length,
-            sampling_rate=self.sampling_rate,
         )
-
-    def test_init(self):
-        pass
 
     def test_get(self):
         for d in self.dataset:

@@ -46,9 +46,10 @@ class Generator(object):
     def forward(self, w: np.ndarray, l: np.ndarray):
         coarse, fine = encode_16bit(self.model.xp.asarray(w))
 
-        coarse = normalize(coarse).astype(np.float32)[np.newaxis]
-        fine = normalize(fine).astype(np.float32)[:-1][np.newaxis]
-        local = self.model.xp.asarray(l)[1:][np.newaxis]
+        coarse = self.model.xp.expand_dims(normalize(coarse).astype(np.float32), axis=0)
+        fine = self.model.xp.expand_dims(normalize(fine).astype(np.float32)[:-1], axis=0)
+
+        local = self.model.xp.expand_dims(self.model.xp.asarray(l), axis=0)
 
         c, f, hc, hf = self.model(coarse, fine, local)
         c = normalize(self.model.sampling(c[:, :, -1], maximum=True).astype(np.float32))
@@ -68,9 +69,10 @@ class Generator(object):
         length = int(self.config.dataset.sampling_rate * time_length)
 
         if local_array is None:
-            local_array = self.model.xp.empty((length, 0), dtype=np.float32)[np.newaxis]
+            local_array = self.model.xp.expand_dims(self.model.xp.empty((length, 0), dtype=np.float32), axis=0)
         else:
-            local_array = self.model.xp.asarray(local_array)[np.newaxis]
+            local_array = self.model.xp.expand_dims(self.model.xp.asarray(local_array), axis=0)
+            local_array = self.model.forward_upconv(local_array)
 
         w_list = []
 

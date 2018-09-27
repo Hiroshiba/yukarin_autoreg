@@ -47,10 +47,62 @@ def normalize(b):
     return b / 127.5 - 1
 
 
-class SignWaveDataset(chainer.dataset.DatasetMixin):
-    def __init__(self, sampling_rate: int, sampling_length: int) -> None:
-        self.sampling_rate = sampling_rate
+class BaseWaveDataset(chainer.dataset.DatasetMixin):
+    def __init__(
+            self,
+            sampling_length: int,
+    ) -> None:
         self.sampling_length = sampling_length
+
+    @staticmethod
+    def extract_input(sampling_length: int, wave_data: Wave, silence_data: SamplingData, local_data: SamplingData):
+        """
+        :return:
+            wave: (sampling_length, )
+            silence: (sampling_length, )
+            local: (sampling_length // scale, )
+        """
+        sr = wave_data.sampling_rate
+        sl = sampling_length
+
+        assert sr % local_data.rate == 0
+        l_scale = int(sr // local_data.rate)
+
+        length = len(local_data.array) * l_scale
+        assert abs(length - len(wave_data.wave)) < sr
+
+        l_length = length // l_scale
+        l_sl = sl // l_scale
+        l_offset = np.random.randint(l_length - l_sl)
+        offset = l_offset * l_scale
+
+        wave = wave_data.wave[offset:offset + sl]
+        silence = np.squeeze(silence_data.resample(sr, index=offset, length=sl))
+        local = local_data.array[l_offset:l_offset + l_sl]
+        return wave, silence, local
+
+    @staticmethod
+    def convert_to_dict(wave: np.ndarray, silence: np.ndarray, local: np.ndarray):
+        coarse, fine = encode_16bit(wave)
+        return dict(
+            input_coarse=normalize(coarse).astype(np.float32),
+            input_fine=normalize(fine).astype(np.float32)[:-1],
+            target_coarse=coarse[1:],
+            target_fine=fine[1:],
+            silence=silence[1:],
+            local=local,
+        )
+
+    def make_input(self, wave_data: Wave, silence_data: SamplingData, local_data: SamplingData):
+        wave, silence, local = self.extract_input(self.sampling_length, wave_data, silence_data, local_data)
+        d = self.convert_to_dict(wave, silence, local)
+        return d
+
+
+class SignWaveDataset(BaseWaveDataset):
+    def __init__(self, sampling_rate: int, sampling_length: int) -> None:
+        super().__init__(sampling_length=sampling_length)
+        self.sampling_rate = sampling_rate
 
     def __len__(self):
         return 100
@@ -60,32 +112,21 @@ class SignWaveDataset(chainer.dataset.DatasetMixin):
         rate = self.sampling_rate
         length = self.sampling_length
         rand = np.random.rand()
-        wave = np.sin((np.arange(length) * freq / rate + rand) * 2 * np.pi)
 
+        wave = np.sin((np.arange(length) * freq / rate + rand) * 2 * np.pi)
         local = np.empty(shape=(length, 0), dtype=np.float32)
         silence = np.zeros(shape=(length,), dtype=np.bool)
-
-        coarse, fine = encode_16bit(wave)
-        return dict(
-            input_coarse=normalize(coarse).astype(np.float32),
-            input_fine=normalize(fine).astype(np.float32)[:-1],
-            target_coarse=coarse[1:],
-            target_fine=fine[1:],
-            local=local[1:],
-            silence=silence[1:],
-        )
+        return self.convert_to_dict(wave, silence, local)
 
 
-class WavesDataset(chainer.dataset.DatasetMixin):
+class WavesDataset(BaseWaveDataset):
     def __init__(
             self,
             inputs: List[Union[Input, LazyInput]],
-            sampling_rate: int,
             sampling_length: int,
     ) -> None:
         self.inputs = inputs
-        self.sampling_rate = sampling_rate
-        self.sampling_length = sampling_length
+        super().__init__(sampling_length=sampling_length)
 
     def __len__(self):
         return len(self.inputs)
@@ -95,32 +136,10 @@ class WavesDataset(chainer.dataset.DatasetMixin):
         if isinstance(input, LazyInput):
             input = input.generate()
 
-        sr = self.sampling_rate
-        sl = self.sampling_length
-
-        wave = input.wave.wave
-        local_data = input.local
-
-        length = len(local_data.array) * (sr // local_data.rate)
-        assert abs(length - len(wave)) < sr
-
-        l_length = length // (sr // local_data.rate)
-        l_sl = sl // (sr // local_data.rate)
-        l_offset = np.random.randint(l_length - l_sl)
-        offset = l_offset * (sr // local_data.rate)
-
-        wave = wave[offset:offset + sl]
-        local = local_data.array[l_offset:l_offset + l_sl]
-        silence = np.squeeze(input.silence.resample(sr, index=offset, length=sl))
-
-        coarse, fine = encode_16bit(wave)
-        return dict(
-            input_coarse=normalize(coarse).astype(np.float32),
-            input_fine=normalize(fine).astype(np.float32)[:-1],
-            target_coarse=coarse[1:],
-            target_fine=fine[1:],
-            local=local,
-            silence=silence[1:],
+        return self.make_input(
+            wave_data=input.wave,
+            silence_data=input.silence,
+            local_data=input.local,
         )
 
 
@@ -161,7 +180,6 @@ def create(config: DatasetConfig):
 
     _Dataset = partial(
         WavesDataset,
-        sampling_rate=config.sampling_rate,
         sampling_length=config.sampling_length,
     )
     return {

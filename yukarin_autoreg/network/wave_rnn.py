@@ -1,8 +1,11 @@
+from typing import List
+
 import chainer
 import chainer.functions as F
 import chainer.links as L
 import numpy as np
 
+from yukarin_autoreg.network.up_conv import UpConv
 from yukarin_autoreg.utility.chainer_initializer_utility import PossibleOrthogonal
 from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepGRU
 
@@ -18,6 +21,7 @@ def _call_1step(net: ModifiedNStepGRU, hidden, input):
 class WaveRNN(chainer.Chain):
     def __init__(
             self,
+            upconv_scales: List[int],
             bit_size: int,
             hidden_size: int,
             local_size: int,
@@ -27,7 +31,9 @@ class WaveRNN(chainer.Chain):
 
         self.half_bins = 2 ** (bit_size // 2)
         self.half_hidden_size = hidden_size // 2
+        self.local_size = local_size
         with self.init_scope():
+            self.upconv = UpConv(scales=upconv_scales)
             self.R_coarse = ModifiedNStepGRU(
                 n_layers=1,
                 in_size=2 + local_size,
@@ -54,28 +60,39 @@ class WaveRNN(chainer.Chain):
         l: local
         :param c_array: float -1 ~ +1 (batch_size, N+1)
         :param f_array: float -1 ~ +1 (batch_size, N)
-        :param l_array: float (batch_size, N, ?)
+        :param l_array: float (batch_size, lN, ?)
         :param hidden: float (batch_size, hidden_size)
         :return:
             out_c_array: float (batch_size, half_bins, N)
             out_f_array: float (batch_size, half_bins, N)
             hidden: float (batch_size, hidden_size)
         """
-        out_c_array, out_f_array, hidden_coarse, hidden_fine = self.forward(
+        assert l_array.shape[2] == self.local_size
+
+        l_array = self.forward_upconv(l_array)  # shape: (batch_size, N, ?)
+        out_c_array, out_f_array, hidden_coarse, hidden_fine = self.forward_rnn(
             c_array=c_array[:, :-1],
             f_array=f_array,
-            l_array=l_array,
+            l_array=l_array[:, 1:],
             curr_c_array=c_array[:, 1:],
             hidden_coarse=hidden_coarse,
             hidden_fine=hidden_fine,
         )
         return out_c_array, out_f_array, hidden_coarse, hidden_fine
 
-    def forward(self, c_array, f_array, l_array, curr_c_array, hidden_coarse=None, hidden_fine=None):
+    def forward_upconv(self, l_array):
+        """
+        :param l_array: float (batch_size, lN, ?)
+        :return:
+            l_array: float (batch_size, N, ?)
+        """
+        return self.upconv(l_array)
+
+    def forward_rnn(self, c_array, f_array, l_array, curr_c_array, hidden_coarse=None, hidden_fine=None):
         """
         :param c_array: float -1 ~ +1 (batch_size, N)
         :param f_array: float -1 ~ +1 (batch_size, N)
-        :param l_array: float -1 ~ +1 (batch_size, N, ?)
+        :param l_array: (batch_size, N, ?)
         :param curr_c_array: float -1 ~ +1 (batch_size, N)
         :param hidden_coarse: float (batch_size, half_hidden_size)
         :param hidden_fine: float (batch_size, half_hidden_size)
@@ -85,7 +102,8 @@ class WaveRNN(chainer.Chain):
             hidden_coarse: float (batch_size, half_hidden_size)
             hidden_fine: float (batch_size, half_hidden_size)
         """
-        assert c_array.shape == f_array.shape == l_array.shape[:2] == curr_c_array.shape
+        assert c_array.shape == f_array.shape == l_array.shape[:2] == curr_c_array.shape, \
+            f'{c_array.shape}, {f_array.shape}, {l_array.shape[:2]}, {curr_c_array.shape}'
 
         batch_size = c_array.shape[0]
         length = c_array.shape[1]  # N
@@ -118,7 +136,7 @@ class WaveRNN(chainer.Chain):
         """
         :param prev_c: float -1 ~ +1 (batch_size, )
         :param prev_f: float -1 ~ +1 (batch_size, )
-        :param prev_l: float -1 ~ +1 (batch_size, ?)
+        :param prev_l: (batch_size, ?)
         :param prev_corr_c: float -1 ~ +1 (batch_size, )
         :param hidden_coarse: float (batch_size, half_hidden_size)
         :param hidden_fine: float (batch_size, half_hidden_size)

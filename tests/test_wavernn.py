@@ -16,6 +16,7 @@ class TestWaveRNN(unittest.TestCase):
             hidden_size=hidden_size,
             bit_size=16,
             local_size=local_size,
+            upconv_scales=[],
         )
 
         # set 'b'
@@ -42,7 +43,7 @@ class TestWaveRNN(unittest.TestCase):
         self.wave_rnn(
             c_array=self.c_array,
             f_array=self.f_array[:, :-1],
-            l_array=self.l_array[:, 1:],
+            l_array=self.l_array,
         )
 
     def test_forward_one(self):
@@ -55,7 +56,7 @@ class TestWaveRNN(unittest.TestCase):
         )
 
     def test_batchsize1_forward(self):
-        oca, ofa, hca, hfa = self.wave_rnn.forward(
+        oca, ofa, hca, hfa = self.wave_rnn.forward_rnn(
             c_array=self.c_array,
             f_array=self.f_array,
             l_array=self.l_array,
@@ -64,7 +65,7 @@ class TestWaveRNN(unittest.TestCase):
             hidden_fine=self.hidden_fine,
         )
 
-        ocb, ofb, hcb, hfb = self.wave_rnn.forward(
+        ocb, ofb, hcb, hfb = self.wave_rnn.forward_rnn(
             c_array=self.c_array[:1],
             f_array=self.f_array[:1],
             l_array=self.l_array[:1],
@@ -105,7 +106,7 @@ class TestWaveRNN(unittest.TestCase):
         np.testing.assert_allclose(hfa.data[:1], hfb.data, atol=1e-6)
 
     def test_same_forward(self):
-        oca, ofa, hca, hfa = self.wave_rnn.forward(
+        oca, ofa, hca, hfa = self.wave_rnn.forward_rnn(
             c_array=self.c_array,
             f_array=self.f_array,
             l_array=self.l_array,

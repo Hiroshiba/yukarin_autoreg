@@ -1,16 +1,16 @@
 from pathlib import Path
-from typing import NamedTuple, Dict
+from typing import Dict, NamedTuple
 
 import numpy as np
 
 
 class SamplingData(NamedTuple):
     array: np.ndarray  # shape: (N, ?)
-    rate: int
+    rate: float
 
-    def resample(self, sampling_rate: int, index: int, length: int):
+    def resample(self, sampling_rate: float, index: int, length: int):
         assert sampling_rate % self.rate == 0, f'{sampling_rate} {self.rate}'
-        scale = sampling_rate // self.rate
+        scale = int(sampling_rate // self.rate)
 
         ni = index // scale
         nl = length // scale + 2

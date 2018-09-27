@@ -41,7 +41,7 @@ train_iters = [
     MultiprocessIterator(
         dataset['train'],
         batchsize_devided,
-        n_processes=multiprocessing.cpu_count() // len(config.train.gpu)
+        n_processes=multiprocessing.cpu_count() // len(config.train.gpu),
     )
     for _ in config.train.gpu
 ]

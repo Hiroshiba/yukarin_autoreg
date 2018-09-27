@@ -62,9 +62,9 @@ def _get_predictor_model_paths(
     return model_paths
 
 
-def process_wo_context(local_path: Path, generator: Generator, sampling_rate: int, postfix='_woc'):
+def process_wo_context(local_path: Path, generator: Generator, postfix='_woc'):
     try:
-        l = SamplingData.load(local_path).resample(sampling_rate, index=0, length=int(time_length * sampling_rate))
+        l = SamplingData.load(local_path).array
         wave = generator.generate(
             time_length=time_length,
             sampling_maximum=sampling_maximum,
@@ -79,16 +79,21 @@ def process_wo_context(local_path: Path, generator: Generator, sampling_rate: in
 def process_resume(wave_path: Path, local_path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
     try:
         w = Wave.load(wave_path, sampling_rate=sampling_rate).wave
-        l = SamplingData.load(local_path).resample(sampling_rate, index=0, length=len(w))
+        l_data = SamplingData.load(local_path)
+        l = l_data.array
 
-        c, f, hc, hf = generator.forward(w[:sampling_length], l[:sampling_length])
+        l_scale = int(sampling_rate // l_data.rate)
+        l_sl = sampling_length // l_scale
+        sampling_length = l_sl * l_scale
+
+        c, f, hc, hf = generator.forward(w[:sampling_length], l[:l_sl])
 
         wave = generator.generate(
             time_length=time_length,
             sampling_maximum=sampling_maximum,
             coarse=c,
             fine=f,
-            local_array=l[sampling_length:],
+            local_array=l[l_sl:],
             hidden_coarse=hc,
             hidden_fine=hf,
         )
@@ -124,6 +129,13 @@ def main():
         wave_paths = wave_paths[:num_test]
         local_paths = local_paths[:num_test]
 
+        # random
+        process_partial = partial(
+            process_wo_context,
+            generator=generator,
+        )
+        list(map(process_partial, local_paths))
+
         # resume
         process_partial = partial(
             process_resume,
@@ -132,14 +144,6 @@ def main():
             sampling_length=config.dataset.sampling_rate,
         )
         list(starmap(process_partial, zip(wave_paths, local_paths)))
-
-        # random
-        process_partial = partial(
-            process_wo_context,
-            generator=generator,
-            sampling_rate=config.dataset.sampling_rate,
-        )
-        list(map(process_partial, local_paths))
 
 
 if __name__ == '__main__':

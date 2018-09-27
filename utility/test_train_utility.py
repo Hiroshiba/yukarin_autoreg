@@ -6,14 +6,11 @@ import numpy as np
 from chainer.iterators import MultiprocessIterator
 from chainer.training.updaters import StandardUpdater
 
-from yukarin_autoreg.dataset import encode_16bit, normalize
+from yukarin_autoreg.dataset import BaseWaveDataset
 from yukarin_autoreg.model import Model
 
 
-class RandomDataset(chainer.dataset.DatasetMixin):
-    def __init__(self, sampling_length: int) -> None:
-        self.sampling_length = sampling_length
-
+class RandomDataset(BaseWaveDataset):
     def __len__(self):
         return 100
 
@@ -22,25 +19,29 @@ class RandomDataset(chainer.dataset.DatasetMixin):
         wave = np.random.rand(length) * 2 - 1
         local = np.empty(shape=(length, 0), dtype=np.float32)
         silence = np.zeros(shape=(length,), dtype=np.bool)
-
-        coarse, fine = encode_16bit(wave)
-        return dict(
-            input_coarse=normalize(coarse).astype(np.float32),
-            input_fine=normalize(fine).astype(np.float32)[:-1],
-            target_coarse=coarse[1:],
-            target_fine=fine[1:],
-            local=local[1:],
-            silence=silence[1:],
-        )
+        return self.convert_to_dict(wave, silence, local)
 
 
 class LocalRandomDataset(RandomDataset):
     def get_example(self, i):
         d = super().get_example(i)
         d['local'] = np.stack((
-            d['target_coarse'].astype(np.float32) / 256,
-            d['target_fine'].astype(np.float32) / 256,
+            np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
+            np.r_[np.NaN, d['target_fine'].astype(np.float32) / 256],
         ), axis=1)
+        return d
+
+
+class DownLocalRandomDataset(LocalRandomDataset):
+    def __init__(self, scale: int, **kwargs) -> None:
+        self.scale = scale
+        super().__init__(**kwargs)
+
+    def get_example(self, i):
+        d = super().get_example(i)
+        l = np.reshape(d['local'], (-1, self.scale * d['local'].shape[1]))
+        l[np.isnan(l)] = 0
+        d['local'] = l
         return d
 
 

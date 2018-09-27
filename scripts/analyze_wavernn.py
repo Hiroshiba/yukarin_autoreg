@@ -22,12 +22,6 @@ parser.add_argument('--time_length', '-tl', type=float, default=1)
 parser.add_argument('--gpu', type=int)
 arguments = parser.parse_args()
 
-model_dir: Path = arguments.model_dir
-model_iteration: int = arguments.model_iteration
-model_config: Path = arguments.model_config
-time_length: float = arguments.time_length
-gpu: int = arguments.gpu
-
 
 def _extract_number(f):
     s = re.findall("\d+", str(f))
@@ -45,6 +39,12 @@ def _get_predictor_model_path(model_dir: Path, iteration: int = None, prefix: st
 
 
 def main():
+    model_dir: Path = arguments.model_dir
+    model_iteration: int = arguments.model_iteration
+    model_config: Path = arguments.model_config
+    time_length: float = arguments.time_length
+    gpu: int = arguments.gpu
+
     config = create_config(model_config)
     model_path = _get_predictor_model_path(model_dir, model_iteration)
 
@@ -67,16 +67,22 @@ def main():
     np.random.RandomState(config.dataset.seed).shuffle(local_paths)
     wave_path = wave_paths[0]
     local_path = local_paths[0]
+    w_data = Wave.load(wave_path, sampling_rate=sr)
+    l_data = SamplingData.load(local_path)
 
     length = int(sr * time_length)
-    w = Wave.load(wave_path, sampling_rate=sr).wave[:length]
-    l = SamplingData.load(local_path).resample(sr, index=0, length=int(time_length * sr))
+    l_scale = int(sr // l_data.rate)
+    l_sl = length // l_scale
+    length = l_sl * l_scale
+
+    w = w_data.wave[:length]
+    l = l_data.array[:l_sl]
     coarse, fine = encode_16bit(w)
 
     c, f, hc, hf = model(
         c_array=normalize(model.xp.asarray(coarse)).astype(np.float32)[np.newaxis],
         f_array=normalize(model.xp.asarray(fine)).astype(np.float32)[:-1][np.newaxis],
-        l_array=model.xp.asarray(l)[1:][np.newaxis],
+        l_array=model.xp.asarray(l)[np.newaxis],
     )
 
     c = chainer.functions.softmax(c)
@@ -90,7 +96,7 @@ def main():
     plt.colorbar()
 
     plt.plot((w + 1) * 127.5, 'g', linewidth=0.1, label='true')
-    plt.plot(np.argmax(c, axis=0), 'r', linewidth=0.1, label='predicted')
+    plt.plot(np.argmax(c, axis=0) + np.argmax(f, axis=0) / 256, 'r', linewidth=0.1, label='predicted')
     plt.legend()
 
     fig.savefig('output.eps')

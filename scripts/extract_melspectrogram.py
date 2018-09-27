@@ -25,8 +25,6 @@ def process(
         fmax: float,
         threshold: Optional[float],
 ):
-    assert sampling_rate % hop_length == 0
-
     wave = Wave.load(path, sampling_rate)
 
     sp = librosa.stft(
@@ -50,7 +48,7 @@ def process(
 
     ms = np.log(ms).astype(np.float32)
 
-    rate = sampling_rate // hop_length
+    rate = sampling_rate / hop_length
 
     out = output_directory / (path.stem + '.npy')
     np.save(str(out), dict(array=ms, rate=rate))
@@ -63,8 +61,8 @@ def main():
     parser.add_argument('--sampling_rate', '-sr', type=int, default=24000)
     parser.add_argument('--n_mels', type=int, default=80)
     parser.add_argument('--n_fft', type=int, default=2048)
-    parser.add_argument('--win_length', type=int, default=120)
-    parser.add_argument('--hop_length', type=int, default=30)
+    parser.add_argument('--win_length', type=int, default=1024)
+    parser.add_argument('--hop_length', type=int, default=256)
     parser.add_argument('--fmin', type=float, default=125)
     parser.add_argument('--fmax', type=float, default=7600)
     parser.add_argument('--threshold', type=float, default=0.01)

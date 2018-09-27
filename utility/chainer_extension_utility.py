@@ -21,3 +21,7 @@ class TensorBoardReport(chainer.training.Extension):
                 v = chainer.cuda.to_cpu(v)
 
             self.writer.add_scalar(n, v, n_iter)
+
+        link = trainer.updater.get_optimizer('main').target
+        for name, param in link.namedparams():
+            self.writer.add_histogram(name, chainer.cuda.to_cpu(param.data), n_iter, bins=100)
