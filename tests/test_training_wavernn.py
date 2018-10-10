@@ -31,6 +31,7 @@ def _create_network(
         bit_size=bit_size,
         local_size=local_size,
         upconv_scales=upconv_scales,
+        upconv_residual=True,
     )
 
 

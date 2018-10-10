@@ -22,6 +22,7 @@ class WaveRNN(chainer.Chain):
     def __init__(
             self,
             upconv_scales: List[int],
+            upconv_residual: bool,
             bit_size: int,
             hidden_size: int,
             local_size: int,
@@ -33,7 +34,7 @@ class WaveRNN(chainer.Chain):
         self.half_hidden_size = hidden_size // 2
         self.local_size = local_size
         with self.init_scope():
-            self.upconv = UpConv(scales=upconv_scales)
+            self.upconv = UpConv(scales=upconv_scales, residual=upconv_residual)
             self.R_coarse = ModifiedNStepGRU(
                 n_layers=1,
                 in_size=2 + local_size,

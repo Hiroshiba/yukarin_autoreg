@@ -22,6 +22,7 @@ class ModelConfig(NamedTuple):
     bit_size: int
     local_size: int
     upconv_scales: List[int]
+    upconv_residual: bool
 
 
 class LossConfig(NamedTuple):
@@ -82,6 +83,7 @@ def create_from_json(s: Union[str, Path]):
             bit_size=d['model']['bit_size'],
             local_size=d['model']['local_size'],
             upconv_scales=d['model']['upconv_scales'],
+            upconv_residual=d['model']['upconv_residual'],
         ),
         loss=LossConfig(
         ),
@@ -127,3 +129,6 @@ def backward_compatible(d: Dict):
 
     if 'upconv_scales' not in d['model']:
         d['model']['upconv_scales'] = []
+
+    if 'upconv_residual' not in d['model']:
+        d['model']['upconv_residual'] = False

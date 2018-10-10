@@ -13,6 +13,7 @@ def create_predictor(config: ModelConfig):
         hidden_size=config.hidden_size,
         local_size=config.local_size,
         upconv_scales=config.upconv_scales,
+        upconv_residual=config.upconv_residual,
     )
     return predictor
 
