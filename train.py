@@ -5,7 +5,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Dict
 
-from chainer import cuda, optimizers, training
+from chainer import cuda, optimizer_hooks, optimizers, training
 from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions
@@ -28,7 +28,7 @@ config.save_as_json((arguments.output / 'config.json').absolute())
 
 # model
 predictor = create_predictor(config.model)
-model = Model(predictor)
+model = Model(loss_config=config.loss, predictor=predictor)
 
 if len(config.train.gpu) == 1:
     model.to_gpu(config.train.gpu[0])
@@ -62,6 +62,10 @@ def create_optimizer(model):
         raise ValueError(n)
 
     optimizer.setup(model)
+
+    if config.train.optimizer_gradient_clipping is not None:
+        optimizer.add_hook(optimizer_hooks.GradientClipping(config.train.optimizer_gradient_clipping))
+
     return optimizer
 
 

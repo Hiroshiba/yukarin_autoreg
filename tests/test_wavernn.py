@@ -17,6 +17,7 @@ class TestWaveRNN(unittest.TestCase):
             bit_size=16,
             local_size=local_size,
             upconv_scales=[],
+            upconv_residual=False,
         )
 
         # set 'b'

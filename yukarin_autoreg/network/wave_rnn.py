@@ -87,6 +87,9 @@ class WaveRNN(chainer.Chain):
         :return:
             l_array: float (batch_size, N, ?)
         """
+        if self.local_size == 0:
+            return l_array
+
         return self.upconv(l_array)
 
     def forward_rnn(self, c_array, f_array, l_array, curr_c_array, hidden_coarse=None, hidden_fine=None):

@@ -6,6 +6,7 @@ import numpy as np
 from chainer.iterators import MultiprocessIterator
 from chainer.training.updaters import StandardUpdater
 
+from yukarin_autoreg.config import LossConfig
 from yukarin_autoreg.dataset import BaseWaveDataset
 from yukarin_autoreg.model import Model
 
@@ -57,7 +58,8 @@ def setup_support(
         network: chainer.Link,
         dataset: chainer.dataset.DatasetMixin,
 ):
-    model = Model(network)
+    loss_config = LossConfig(clipping=None)
+    model = Model(loss_config=loss_config, predictor=network)
     optimizer = _create_optimizer(model)
     train_iter = MultiprocessIterator(dataset, batch_size)
 

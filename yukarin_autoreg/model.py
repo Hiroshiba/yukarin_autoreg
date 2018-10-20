@@ -3,7 +3,7 @@ import chainer.functions as F
 import numpy as np
 from chainer import Chain
 
-from yukarin_autoreg.config import ModelConfig
+from yukarin_autoreg.config import LossConfig, ModelConfig
 from yukarin_autoreg.network import WaveRNN
 
 
@@ -19,10 +19,17 @@ def create_predictor(config: ModelConfig):
 
 
 class Model(Chain):
-    def __init__(self, predictor: WaveRNN) -> None:
+    def __init__(self, loss_config: LossConfig, predictor: WaveRNN) -> None:
         super().__init__()
+        self.loss_config = loss_config
         with self.init_scope():
             self.predictor = predictor
+
+        self.loss_clopping_count = 0
+
+    @property
+    def loss_clopping_flag(self):
+        return self.loss_clopping_count > 100  # magic number
 
     def __call__(
             self,
@@ -39,13 +46,22 @@ class Model(Chain):
             l_array=local,
         )
 
-        nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')
-        nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')
-
-        nll_coarse = F.mean(nll_coarse[~silence])
-        nll_fine = F.mean(nll_fine[~silence])
+        nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')[~silence]
+        nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')[~silence]
 
         loss = nll_coarse + nll_fine
+        if self.loss_config.clipping is not None:
+            if self.loss_clopping_flag:
+                loss = F.clip(loss, 0.0, float(self.loss_config.clipping))
+        loss = F.mean(loss)
+
+        nll_coarse = F.mean(nll_coarse)
+        nll_fine = F.mean(nll_fine)
+
+        if self.loss_config.clipping is not None:
+            if not self.loss_clopping_flag:
+                if loss.data < self.loss_config.clipping:
+                    self.loss_clopping_count += 1
 
         chainer.report(dict(
             nll_coarse=nll_coarse,

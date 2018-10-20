@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Union
+from typing import Any, Dict, List, NamedTuple, Union, Optional
 
 from yukarin_autoreg.utility.json_utility import JSONEncoder
 
@@ -26,7 +26,7 @@ class ModelConfig(NamedTuple):
 
 
 class LossConfig(NamedTuple):
-    pass
+    clipping: Optional[float]
 
 
 class TrainConfig(NamedTuple):
@@ -36,6 +36,7 @@ class TrainConfig(NamedTuple):
     snapshot_iteration: int
     stop_iteration: int
     optimizer: Dict[str, Any]
+    optimizer_gradient_clipping: float
 
 
 class ProjectConfig(NamedTuple):
@@ -86,6 +87,7 @@ def create_from_json(s: Union[str, Path]):
             upconv_residual=d['model']['upconv_residual'],
         ),
         loss=LossConfig(
+            clipping=d['loss']['clipping'],
         ),
         train=TrainConfig(
             batchsize=d['train']['batchsize'],
@@ -94,6 +96,7 @@ def create_from_json(s: Union[str, Path]):
             snapshot_iteration=d['train']['snapshot_iteration'],
             stop_iteration=d['train']['stop_iteration'],
             optimizer=d['train']['optimizer'],
+            optimizer_gradient_clipping=d['train']['optimizer_gradient_clipping'],
         ),
         project=ProjectConfig(
             name=d['project']['name'],
@@ -132,3 +135,9 @@ def backward_compatible(d: Dict):
 
     if 'upconv_residual' not in d['model']:
         d['model']['upconv_residual'] = False
+
+    if 'optimizer_gradient_clipping' not in d['train']:
+        d['train']['optimizer_gradient_clipping'] = None
+
+    if 'clipping' not in d['loss']:
+        d['loss']['clipping'] = None
