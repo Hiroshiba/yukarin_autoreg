@@ -1,6 +1,5 @@
-import unittest
-
 import numpy as np
+import unittest
 
 from yukarin_autoreg.network import WaveRNN
 
@@ -18,6 +17,8 @@ class TestWaveRNN(unittest.TestCase):
             local_size=local_size,
             upconv_scales=[],
             upconv_residual=False,
+            residual_encoder_channel=None,
+            residual_encoder_num_block=None,
         )
 
         # set 'b'

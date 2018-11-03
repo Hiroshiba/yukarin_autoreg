@@ -12,7 +12,7 @@ from yukarin_autoreg.network import WaveRNN
 sampling_rate = 8000
 sampling_length = 880
 
-gpu = 1
+gpu = 3
 bit_size = 16
 batch_size = 16
 hidden_size = 896
@@ -32,6 +32,8 @@ def _create_network(
         local_size=local_size,
         upconv_scales=upconv_scales,
         upconv_residual=len(upconv_scales) > 0,
+        residual_encoder_channel=None,
+        residual_encoder_num_block=None,
     )
 
 

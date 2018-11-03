@@ -109,6 +109,8 @@ trainer.extend(extensions.observe_lr(), trigger=trigger_log)
 trainer.extend(extensions.LogReport(trigger=trigger_log))
 trainer.extend(TensorBoardReport(writer=tb_writer), trigger=trigger_log)
 
+trainer.extend(extensions.dump_graph(root_name="main/loss"))
+
 if trigger_stop is not None:
     trainer.extend(extensions.ProgressBar(trigger_stop))
 

@@ -1,10 +1,10 @@
-from typing import List
-
 import chainer
 import chainer.functions as F
 import chainer.links as L
 import numpy as np
+from typing import List, Optional
 
+from yukarin_autoreg.network.residual_encoder import ResidualEncoder
 from yukarin_autoreg.network.up_conv import UpConv
 from yukarin_autoreg.utility.chainer_initializer_utility import PossibleOrthogonal
 from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepGRU
@@ -23,6 +23,8 @@ class WaveRNN(chainer.Chain):
             self,
             upconv_scales: List[int],
             upconv_residual: bool,
+            residual_encoder_channel: Optional[int],
+            residual_encoder_num_block: Optional[int],
             bit_size: int,
             hidden_size: int,
             local_size: int,
@@ -34,7 +36,12 @@ class WaveRNN(chainer.Chain):
         self.half_hidden_size = hidden_size // 2
         self.local_size = local_size
         with self.init_scope():
-            self.upconv = UpConv(scales=upconv_scales, residual=upconv_residual)
+            self.upconv = UpConv(scales=upconv_scales, residual=upconv_residual, initialW=initialW)
+            self.residual_encoder = ResidualEncoder(
+                n_channel=residual_encoder_channel,
+                num_block=residual_encoder_num_block,
+                initialW=initialW,
+            ) if (residual_encoder_num_block is not None) and (residual_encoder_channel is not None) else None
             self.R_coarse = ModifiedNStepGRU(
                 n_layers=1,
                 in_size=2 + local_size,
@@ -70,7 +77,7 @@ class WaveRNN(chainer.Chain):
         """
         assert l_array.shape[2] == self.local_size
 
-        l_array = self.forward_upconv(l_array)  # shape: (batch_size, N, ?)
+        l_array = self.forward_encode(l_array)  # shape: (batch_size, N, ?)
         out_c_array, out_f_array, hidden_coarse, hidden_fine = self.forward_rnn(
             c_array=c_array[:, :-1],
             f_array=f_array,
@@ -81,7 +88,7 @@ class WaveRNN(chainer.Chain):
         )
         return out_c_array, out_f_array, hidden_coarse, hidden_fine
 
-    def forward_upconv(self, l_array):
+    def forward_encode(self, l_array):
         """
         :param l_array: float (batch_size, lN, ?)
         :return:
@@ -89,6 +96,9 @@ class WaveRNN(chainer.Chain):
         """
         if self.local_size == 0:
             return l_array
+
+        if self.residual_encoder is not None:
+            l_array = self.residual_encoder(l_array)
 
         return self.upconv(l_array)
 

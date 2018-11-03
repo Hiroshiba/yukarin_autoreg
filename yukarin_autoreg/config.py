@@ -23,6 +23,8 @@ class ModelConfig(NamedTuple):
     local_size: int
     upconv_scales: List[int]
     upconv_residual: bool
+    residual_encoder_channel: int
+    residual_encoder_num_block: int
 
 
 class LossConfig(NamedTuple):
@@ -85,6 +87,8 @@ def create_from_json(s: Union[str, Path]):
             local_size=d['model']['local_size'],
             upconv_scales=d['model']['upconv_scales'],
             upconv_residual=d['model']['upconv_residual'],
+            residual_encoder_channel=d['model']['residual_encoder_channel'],
+            residual_encoder_num_block=d['model']['residual_encoder_num_block'],
         ),
         loss=LossConfig(
             clipping=d['loss']['clipping'],
@@ -141,3 +145,9 @@ def backward_compatible(d: Dict):
 
     if 'clipping' not in d['loss']:
         d['loss']['clipping'] = None
+
+    if 'residual_encoder_channel' not in d['model']:
+        d['model']['residual_encoder_channel'] = None
+
+    if 'residual_encoder_num_block' not in d['model']:
+        d['model']['residual_encoder_num_block'] = None

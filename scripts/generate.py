@@ -112,6 +112,7 @@ def main():
         iterations=model_iterations,
         num_mean_model=num_mean_model,
     )
+    if len(models) == 1: models = models[0]
     generator = Generator(
         config,
         models,

@@ -72,7 +72,7 @@ class Generator(object):
             local_array = self.model.xp.expand_dims(self.model.xp.empty((length, 0), dtype=np.float32), axis=0)
         else:
             local_array = self.model.xp.expand_dims(self.model.xp.asarray(local_array), axis=0)
-            local_array = self.model.forward_upconv(local_array)
+            local_array = self.model.forward_encode(local_array)
 
         w_list = []
 
