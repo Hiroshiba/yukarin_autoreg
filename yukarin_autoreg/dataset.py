@@ -69,7 +69,7 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
         l_scale = int(sr // local_data.rate)
 
         length = len(local_data.array) * l_scale
-        assert abs(length - len(wave_data.wave)) < sr
+        assert abs(length - len(wave_data.wave)) < l_scale * 4, f'{abs(length - len(wave_data.wave))} {l_scale}'
 
         l_length = length // l_scale
         l_sl = sl // l_scale

@@ -14,6 +14,7 @@ def create_predictor(config: ModelConfig):
         local_size=config.local_size,
         upconv_scales=config.upconv_scales,
         upconv_residual=config.upconv_residual,
+        upconv_channel_ksize=config.upconv_channel_ksize,
         residual_encoder_channel=config.residual_encoder_channel,
         residual_encoder_num_block=config.residual_encoder_num_block,
     )

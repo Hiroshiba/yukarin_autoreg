@@ -23,6 +23,7 @@ class WaveRNN(chainer.Chain):
             self,
             upconv_scales: List[int],
             upconv_residual: bool,
+            upconv_channel_ksize: int,
             residual_encoder_channel: Optional[int],
             residual_encoder_num_block: Optional[int],
             bit_size: int,
@@ -36,7 +37,12 @@ class WaveRNN(chainer.Chain):
         self.half_hidden_size = hidden_size // 2
         self.local_size = local_size
         with self.init_scope():
-            self.upconv = UpConv(scales=upconv_scales, residual=upconv_residual, initialW=initialW)
+            self.upconv = UpConv(
+                scales=upconv_scales,
+                residual=upconv_residual,
+                c_ksize=upconv_channel_ksize,
+                initialW=initialW,
+            )
             self.residual_encoder = ResidualEncoder(
                 n_channel=residual_encoder_channel,
                 num_block=residual_encoder_num_block,
@@ -75,7 +81,7 @@ class WaveRNN(chainer.Chain):
             out_f_array: float (batch_size, half_bins, N)
             hidden: float (batch_size, hidden_size)
         """
-        assert l_array.shape[2] == self.local_size
+        assert l_array.shape[2] == self.local_size, f'{l_array.shape[2]} {self.local_size}'
 
         l_array = self.forward_encode(l_array)  # shape: (batch_size, N, ?)
         out_c_array, out_f_array, hidden_coarse, hidden_fine = self.forward_rnn(

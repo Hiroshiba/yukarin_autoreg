@@ -6,3 +6,4 @@ matplotlib
 chainerui
 tensorflow
 git+https://github.com/neka-nat/tensorboard-chainer
+pyworld

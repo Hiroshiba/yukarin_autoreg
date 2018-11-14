@@ -23,6 +23,7 @@ class ModelConfig(NamedTuple):
     local_size: int
     upconv_scales: List[int]
     upconv_residual: bool
+    upconv_channel_ksize: int
     residual_encoder_channel: int
     residual_encoder_num_block: int
 
@@ -87,6 +88,7 @@ def create_from_json(s: Union[str, Path]):
             local_size=d['model']['local_size'],
             upconv_scales=d['model']['upconv_scales'],
             upconv_residual=d['model']['upconv_residual'],
+            upconv_channel_ksize=d['model']['upconv_channel_ksize'],
             residual_encoder_channel=d['model']['residual_encoder_channel'],
             residual_encoder_num_block=d['model']['residual_encoder_num_block'],
         ),
@@ -151,3 +153,6 @@ def backward_compatible(d: Dict):
 
     if 'residual_encoder_num_block' not in d['model']:
         d['model']['residual_encoder_num_block'] = None
+
+    if 'upconv_channel_ksize' not in d['model']:
+        d['model']['upconv_channel_ksize'] = 3

@@ -1,8 +1,7 @@
-import unittest
-from typing import List
-
 import chainer
 import numpy as np
+import unittest
+from typing import List
 
 from utility.test_train_utility import DownLocalRandomDataset, LocalRandomDataset, RandomDataset, setup_support, \
     train_support
@@ -32,6 +31,7 @@ def _create_network(
         local_size=local_size,
         upconv_scales=upconv_scales,
         upconv_residual=len(upconv_scales) > 0,
+        upconv_channel_ksize=3,
         residual_encoder_channel=None,
         residual_encoder_num_block=None,
     )

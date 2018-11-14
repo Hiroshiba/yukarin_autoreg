@@ -1,12 +1,12 @@
+from itertools import starmap
+
 import argparse
 import glob
+import numpy as np
 import re
 from functools import partial
-from itertools import starmap
 from pathlib import Path
 from typing import List
-
-import numpy as np
 
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.generator import Generator
@@ -36,11 +36,6 @@ num_mean_model: int = arguments.num_mean_model
 output_dir: Path = arguments.output_dir
 gpu: int = arguments.gpu
 
-output_dir.mkdir(exist_ok=True)
-
-output = output_dir / model_dir.name
-output.mkdir(exist_ok=True)
-
 
 def _extract_number(f):
     s = re.findall("\d+", str(f))
@@ -59,6 +54,7 @@ def _get_predictor_model_paths(
         model_paths = list(sorted(paths, key=_extract_number))[-num_mean_model:]
     else:
         model_paths = [model_dir / (prefix + '{}.npz'.format(i)) for i in iterations]
+        for p in model_paths: assert p.exists()
     return model_paths
 
 
@@ -70,7 +66,7 @@ def process_wo_context(local_path: Path, generator: Generator, postfix='_woc'):
             sampling_maximum=sampling_maximum,
             local_array=l,
         )
-        wave.save(output / (local_path.stem + postfix + '.wav'))
+        wave.save(output_dir / (local_path.stem + postfix + '.wav'))
     except:
         import traceback
         traceback.print_exc()
@@ -97,22 +93,24 @@ def process_resume(wave_path: Path, local_path: Path, generator: Generator, samp
             hidden_coarse=hc,
             hidden_fine=hf,
         )
-        wave.save(output / (wave_path.stem + '.wav'))
+        wave.save(output_dir / (wave_path.stem + '.wav'))
     except:
         import traceback
         traceback.print_exc()
 
 
 def main():
-    save_arguments(arguments, output / 'arguments.json')
-
-    config = create_config(model_config)
     models = _get_predictor_model_paths(
         model_dir=model_dir,
         iterations=model_iterations,
         num_mean_model=num_mean_model,
     )
     if len(models) == 1: models = models[0]
+
+    output_dir.mkdir(exist_ok=True, parents=True)
+    save_arguments(arguments, output_dir / 'arguments.json')
+
+    config = create_config(model_config)
     generator = Generator(
         config,
         models,
