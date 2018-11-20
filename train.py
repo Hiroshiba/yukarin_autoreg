@@ -1,16 +1,15 @@
 import argparse
 import multiprocessing
-from copy import copy
-from functools import partial
-from pathlib import Path
-from typing import Any, Dict
-
 from chainer import cuda, optimizer_hooks, optimizers, training
 from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions
 from chainer.training.updaters import MultiprocessParallelUpdater, StandardUpdater
+from copy import copy
+from functools import partial
+from pathlib import Path
 from tb_chainer import SummaryWriter
+from typing import Any, Dict
 
 from utility.chainer_extension_utility import TensorBoardReport
 from yukarin_autoreg.config import create_from_json
@@ -95,6 +94,9 @@ trigger_stop = (config.train.stop_iteration, 'iteration') if config.train.stop_i
 
 trainer = training.Trainer(updater, stop_trigger=trigger_stop, out=arguments.output)
 tb_writer = SummaryWriter(Path(arguments.output))
+
+if config.train.linear_shift is not None:
+    trainer.extend(extensions.LinearShift(**config.train.linear_shift))
 
 ext = extensions.Evaluator(test_iter, model, converter, device=config.train.gpu[0])
 trainer.extend(ext, name='test', trigger=trigger_log)
