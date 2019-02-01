@@ -31,6 +31,16 @@ class Phoneme(object):
     def phoneme_id(self):
         return self.phoneme_list.index(self.phoneme)
 
+    @property
+    def duration(self):
+        return self.end - self.start
+
+    @property
+    def onehot(self):
+        array = np.zeros(self.num_phoneme, dtype=bool)
+        array[self.phoneme_id] = True
+        return array
+
     @staticmethod
     def parse(s: str):
         """
