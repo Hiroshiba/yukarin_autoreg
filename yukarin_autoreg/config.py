@@ -13,6 +13,7 @@ class DatasetConfig(NamedTuple):
     input_local_glob: str
     bit_size: int
     gaussian_noise_sigma: float
+    only_coarse: bool
     seed: int
     num_test: int
     sign_wave_dataset: bool
@@ -21,6 +22,7 @@ class DatasetConfig(NamedTuple):
 class ModelConfig(NamedTuple):
     hidden_size: int
     bit_size: int
+    single_softmax: bool
     local_size: int
     upconv_scales: List[int]
     upconv_residual: bool
@@ -83,6 +85,7 @@ def create_from_json(s: Union[str, Path]):
             input_local_glob=d['dataset']['input_local_glob'],
             bit_size=d['dataset']['bit_size'],
             gaussian_noise_sigma=d['dataset']['gaussian_noise_sigma'],
+            only_coarse=d['dataset']['only_coarse'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
             sign_wave_dataset=d['dataset']['sign_wave_dataset'],
@@ -90,6 +93,7 @@ def create_from_json(s: Union[str, Path]):
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
+            single_softmax=d['model']['single_softmax'],
             local_size=d['model']['local_size'],
             upconv_scales=d['model']['upconv_scales'],
             upconv_residual=d['model']['upconv_residual'],
@@ -176,3 +180,9 @@ def backward_compatible(d: Dict):
 
     if 'trained_model' not in d['train']:
         d['train']['trained_model'] = None
+
+    if 'only_coarse' not in d['dataset']:
+        d['dataset']['only_coarse'] = False
+
+    if 'single_softmax' not in d['model']:
+        d['model']['single_softmax'] = False

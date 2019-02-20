@@ -2,7 +2,8 @@ import unittest
 
 import numpy as np
 
-from yukarin_autoreg.dataset import BaseWaveDataset, Input, WavesDataset, decode_16bit, encode_16bit, normalize
+from yukarin_autoreg.dataset import BaseWaveDataset, Input, WavesDataset, decode_16bit, decode_8bit, encode_16bit, \
+    encode_8bit, normalize
 from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.wave import Wave
 
@@ -13,7 +14,7 @@ hidden_size = 8
 
 class TestEncode16Bit(unittest.TestCase):
     def setUp(self):
-        self.wave_increase = np.linspace(-1, 1, num=256 ** 2).astype(np.float32)
+        self.wave_increase = np.linspace(-1, 1, num=2 ** 16).astype(np.float32)
 
     def test_init(self):
         pass
@@ -28,6 +29,22 @@ class TestEncode16Bit(unittest.TestCase):
 
         self.assertTrue(np.all(np.diff(coarse) >= 0))
         self.assertTrue((np.diff(fine) >= 0).sum() == 256 ** 2 - 255 - 1)
+
+
+class TestEncode8Bit(unittest.TestCase):
+    def setUp(self):
+        self.wave_increase = np.linspace(-1, 1, num=2 ** 16).astype(np.float32)
+
+    def test_init(self):
+        pass
+
+    def test_encode(self):
+        coarse = encode_8bit(self.wave_increase)
+
+        self.assertTrue(np.all(coarse >= 0))
+        self.assertTrue(np.all(coarse < 256))
+
+        self.assertTrue(np.all(np.diff(coarse) >= 0))
 
 
 class TestDecode16Bit(unittest.TestCase):
@@ -52,6 +69,30 @@ class TestDecode16Bit(unittest.TestCase):
         w = decode_16bit(coarse, fine)
 
         np.testing.assert_allclose(self.wave_increase, w, atol=2 ** -15)
+
+
+class TestDecode8Bit(unittest.TestCase):
+    def setUp(self):
+        self.wave_increase = np.linspace(-1, 1, num=2 ** 17).astype(np.float32)
+
+    def test_init(self):
+        pass
+
+    def test_decode(self):
+        coarse = np.arange(256).astype(np.int32)
+        w = decode_8bit(coarse)
+
+        self.assertTrue(np.all(-1 <= w))
+        self.assertTrue(np.all(w <= 1))
+
+        self.assertEqual((w < 0).sum(), 2 ** 7)
+        self.assertEqual((w >= 0).sum(), 2 ** 7)
+
+    def test_encode_decode(self):
+        coarse = encode_8bit(self.wave_increase)
+        w = decode_8bit(coarse)
+
+        np.testing.assert_allclose(self.wave_increase, w, atol=2 ** -7)
 
 
 class TestNormalize(unittest.TestCase):

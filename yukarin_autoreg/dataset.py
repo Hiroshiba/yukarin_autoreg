@@ -37,8 +37,19 @@ def encode_16bit(wave):
     return coarse, fine
 
 
+def encode_8bit(wave):
+    coarse = ((wave + 1) * 2 ** 7).astype(np.int32)
+    coarse[coarse == 2 ** 8] = 2 ** 8 - 1
+    return coarse
+
+
 def decode_16bit(coarse, fine):
     signal = (coarse * 256 + fine) / (2 ** 16 - 1) * 2 - 1
+    return signal.astype(np.float32)
+
+
+def decode_8bit(coarse):
+    signal = coarse / (2 ** 8 - 1) * 2 - 1
     return signal.astype(np.float32)
 
 
@@ -161,7 +172,7 @@ class WavesDataset(BaseWaveDataset):
 
 
 def create(config: DatasetConfig):
-    assert config.bit_size == 16
+    assert (config.bit_size == 16 and not config.only_coarse) or (config.bit_size == 8 and config.only_coarse)
 
     if config.sign_wave_dataset:
         return {
