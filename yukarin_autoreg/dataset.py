@@ -39,7 +39,7 @@ def encode_16bit(wave):
 
 
 def decode_16bit(coarse, fine):
-    signal = (coarse * 256 + fine) / 2 ** 15 - 1
+    signal = (coarse * 256 + fine) / (2 ** 16 - 1) * 2 - 1
     return signal.astype(np.float32)
 
 

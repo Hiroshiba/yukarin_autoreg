@@ -32,7 +32,7 @@ class TestEncode16Bit(unittest.TestCase):
 
 class TestDecode16Bit(unittest.TestCase):
     def setUp(self):
-        self.wave_increase = np.linspace(-1, 1, num=256 ** 2).astype(np.float32)
+        self.wave_increase = np.linspace(-1, 1, num=2 ** 17).astype(np.float32)
 
     def test_init(self):
         pass
@@ -51,7 +51,7 @@ class TestDecode16Bit(unittest.TestCase):
         coarse, fine = encode_16bit(self.wave_increase)
         w = decode_16bit(coarse, fine)
 
-        np.testing.assert_allclose(self.wave_increase, w, atol=1e-4)
+        np.testing.assert_allclose(self.wave_increase, w, atol=2 ** -15)
 
 
 class TestNormalize(unittest.TestCase):
