@@ -52,6 +52,9 @@ class Model(Chain):
         nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')[~silence]
         nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')[~silence]
 
+        if self.loss_config.scale_fine != 1.0:
+            nll_fine *= self.loss_config.scale_fine
+
         loss = nll_coarse + nll_fine
         if self.loss_config.clipping is not None:
             if self.loss_clopping_flag:

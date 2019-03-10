@@ -30,6 +30,7 @@ class ModelConfig(NamedTuple):
 
 class LossConfig(NamedTuple):
     clipping: Optional[float]
+    scale_fine: float
 
 
 class TrainConfig(NamedTuple):
@@ -95,6 +96,7 @@ def create_from_json(s: Union[str, Path]):
         ),
         loss=LossConfig(
             clipping=d['loss']['clipping'],
+            scale_fine=d['loss']['scale_fine'],
         ),
         train=TrainConfig(
             batchsize=d['train']['batchsize'],
@@ -161,3 +163,6 @@ def backward_compatible(d: Dict):
 
     if 'linear_shift' not in d['train']:
         d['train']['linear_shift'] = None
+
+    if 'scale_fine' not in d['loss']:
+        d['loss']['scale_fine'] = 1.0
