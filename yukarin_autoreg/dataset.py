@@ -1,10 +1,9 @@
+import chainer
 import glob
+import numpy as np
 from functools import partial
 from pathlib import Path
 from typing import List, NamedTuple, Union
-
-import chainer
-import numpy as np
 
 from yukarin_autoreg.config import DatasetConfig
 from yukarin_autoreg.sampling_data import SamplingData
@@ -82,6 +81,14 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
         return wave, silence, local
 
     @staticmethod
+    def add_noise(wave: np.ndarray, gaussian_noise_sigma: float):
+        if gaussian_noise_sigma > 0:
+            wave += np.random.normal(0, gaussian_noise_sigma)
+            wave[wave > 1.0] = 1.0
+            wave[wave < -1.0] = -1.0
+        return wave
+
+    @staticmethod
     def convert_to_dict(wave: np.ndarray, silence: np.ndarray, local: np.ndarray):
         coarse, fine = encode_16bit(wave)
         return dict(
@@ -93,8 +100,15 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
             local=local,
         )
 
-    def make_input(self, wave_data: Wave, silence_data: SamplingData, local_data: SamplingData):
+    def make_input(
+            self,
+            wave_data: Wave,
+            silence_data: SamplingData,
+            local_data: SamplingData,
+            gaussian_noise_sigma: float,
+    ):
         wave, silence, local = self.extract_input(self.sampling_length, wave_data, silence_data, local_data)
+        wave = self.add_noise(wave=wave, gaussian_noise_sigma=gaussian_noise_sigma)
         d = self.convert_to_dict(wave, silence, local)
         return d
 
@@ -124,9 +138,11 @@ class WavesDataset(BaseWaveDataset):
             self,
             inputs: List[Union[Input, LazyInput]],
             sampling_length: int,
+            gaussian_noise_sigma: float,
     ) -> None:
-        self.inputs = inputs
         super().__init__(sampling_length=sampling_length)
+        self.inputs = inputs
+        self.gaussian_noise_sigma = gaussian_noise_sigma
 
     def __len__(self):
         return len(self.inputs)
@@ -140,6 +156,7 @@ class WavesDataset(BaseWaveDataset):
             wave_data=input.wave,
             silence_data=input.silence,
             local_data=input.local,
+            gaussian_noise_sigma=self.gaussian_noise_sigma,
         )
 
 
@@ -181,6 +198,7 @@ def create(config: DatasetConfig):
     _Dataset = partial(
         WavesDataset,
         sampling_length=config.sampling_length,
+        gaussian_noise_sigma=config.gaussian_noise_sigma,
     )
     return {
         'train': _Dataset(trains),

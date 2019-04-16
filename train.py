@@ -1,5 +1,7 @@
-import argparse
 import multiprocessing
+
+import argparse
+import chainer
 from chainer import cuda, optimizer_hooks, optimizers, training
 from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
@@ -27,6 +29,8 @@ config.save_as_json((arguments.output / 'config.json').absolute())
 
 # model
 predictor = create_predictor(config.model)
+if config.train.trained_model is not None:
+    chainer.serializers.load_npz(config.train.trained_model, predictor)
 model = Model(loss_config=config.loss, predictor=predictor)
 
 if len(config.train.gpu) == 1:

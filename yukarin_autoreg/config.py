@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Union, Optional
+from typing import Any, Dict, List, NamedTuple, Optional, Union
 
 from yukarin_autoreg.utility.json_utility import JSONEncoder
 
@@ -12,6 +12,7 @@ class DatasetConfig(NamedTuple):
     input_silence_glob: str
     input_local_glob: str
     bit_size: int
+    gaussian_noise_sigma: float
     seed: int
     num_test: int
     sign_wave_dataset: bool
@@ -42,6 +43,7 @@ class TrainConfig(NamedTuple):
     optimizer: Dict[str, Any]
     optimizer_gradient_clipping: float
     linear_shift: Dict[str, Any]
+    trained_model: Optional[str]
 
 
 class ProjectConfig(NamedTuple):
@@ -80,6 +82,7 @@ def create_from_json(s: Union[str, Path]):
             input_silence_glob=d['dataset']['input_silence_glob'],
             input_local_glob=d['dataset']['input_local_glob'],
             bit_size=d['dataset']['bit_size'],
+            gaussian_noise_sigma=d['dataset']['gaussian_noise_sigma'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
             sign_wave_dataset=d['dataset']['sign_wave_dataset'],
@@ -107,6 +110,7 @@ def create_from_json(s: Union[str, Path]):
             optimizer=d['train']['optimizer'],
             optimizer_gradient_clipping=d['train']['optimizer_gradient_clipping'],
             linear_shift=d['train']['linear_shift'],
+            trained_model=d['train']['trained_model'],
         ),
         project=ProjectConfig(
             name=d['project']['name'],
@@ -166,3 +170,9 @@ def backward_compatible(d: Dict):
 
     if 'scale_fine' not in d['loss']:
         d['loss']['scale_fine'] = 1.0
+
+    if 'gaussian_noise_sigma' not in d['dataset']:
+        d['dataset']['gaussian_noise_sigma'] = 0.0
+
+    if 'trained_model' not in d['train']:
+        d['train']['trained_model'] = None
