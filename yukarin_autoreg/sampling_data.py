@@ -24,7 +24,7 @@ class SamplingData(NamedTuple):
 
     @staticmethod
     def load(path: Path):
-        d: Dict = np.load(str(path)).item()
+        d: Dict = np.load(str(path), allow_pickle=True).item()
         array, rate = d['array'], d['rate']
 
         if array.ndim == 1:
