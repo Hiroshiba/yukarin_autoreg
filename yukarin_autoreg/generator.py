@@ -19,9 +19,10 @@ class Generator(object):
             model_path: Union[Path, List[Path]],
             gpu: int = None,
     ) -> None:
-        self.config = config
         self.model_path = model_path
         self.gpu = gpu
+
+        self.sampling_rate = config.dataset.sampling_rate
 
         if isinstance(model_path, Path):
             self.model = model = create_predictor(config.model)
@@ -66,7 +67,7 @@ class Generator(object):
             hidden_coarse=None,
             hidden_fine=None,
     ):
-        length = int(self.config.dataset.sampling_rate * time_length)
+        length = int(self.sampling_rate * time_length)
 
         if local_array is None:
             local_array = self.model.xp.expand_dims(self.model.xp.empty((length, 0), dtype=np.float32), axis=0)
@@ -104,4 +105,4 @@ class Generator(object):
             c = normalize(c.astype(np.float32))
             f = normalize(f.astype(np.float32))
 
-        return Wave(wave=np.array(w_list), sampling_rate=self.config.dataset.sampling_rate)
+        return Wave(wave=np.array(w_list), sampling_rate=self.sampling_rate)

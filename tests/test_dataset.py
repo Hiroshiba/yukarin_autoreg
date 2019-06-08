@@ -119,6 +119,7 @@ class TestWavesDataset(unittest.TestCase):
         self.dataset = WavesDataset(
             inputs,
             sampling_length=self.sampling_length,
+            gaussian_noise_sigma=0,
         )
 
     def test_get(self):

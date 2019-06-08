@@ -1,5 +1,6 @@
 numpy
-chainer<5.0.0
+chainer<6.0.0
+cupy<6.0.0
 librosa
 pysptk
 matplotlib

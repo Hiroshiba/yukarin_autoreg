@@ -58,7 +58,7 @@ def setup_support(
         network: chainer.Link,
         dataset: chainer.dataset.DatasetMixin,
 ):
-    loss_config = LossConfig(clipping=None)
+    loss_config = LossConfig(clipping=None, scale_fine=1.0)
     model = Model(loss_config=loss_config, predictor=network)
     optimizer = _create_optimizer(model)
     train_iter = MultiprocessIterator(dataset, batch_size)
@@ -77,7 +77,7 @@ def setup_support(
     reporter = chainer.Reporter()
     reporter.add_observer('main', model)
 
-    return updater, reporter
+    return updater, reporter, network
 
 
 def train_support(

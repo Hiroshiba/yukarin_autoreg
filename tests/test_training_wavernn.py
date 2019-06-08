@@ -1,6 +1,7 @@
+import unittest
+
 import chainer
 import numpy as np
-import unittest
 from typing import List
 
 from utility.test_train_utility import DownLocalRandomDataset, LocalRandomDataset, RandomDataset, setup_support, \
@@ -23,8 +24,11 @@ if gpu is not None:
 
 def _create_network(
         local_size: int,
-        upconv_scales: List[int] = list(),
+        upconv_scales: List[int] = None,
 ):
+    if upconv_scales is None:
+        upconv_scales = []
+
     return WaveRNN(
         hidden_size=hidden_size,
         bit_size=bit_size,
@@ -42,7 +46,7 @@ class TestTrainingWaveRNN(unittest.TestCase):
         wave_rnn = _create_network(local_size=0)
         dataset = SignWaveDataset(sampling_rate=sampling_rate, sampling_length=sampling_length)
 
-        self.updater, self.reporter = setup_support(batch_size, gpu, wave_rnn, dataset)
+        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
     def test_train(self):
         def _first_hook(o):
@@ -61,7 +65,7 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
         wave_rnn = _create_network(local_size=0)
         dataset = RandomDataset(sampling_length=sampling_length)
 
-        self.updater, self.reporter = setup_support(batch_size, gpu, wave_rnn, dataset)
+        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
     def test_train(self):
         def _first_hook(o):
@@ -80,7 +84,7 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
         wave_rnn = _create_network(local_size=2)
         dataset = LocalRandomDataset(sampling_length=sampling_length)
 
-        self.updater, self.reporter = setup_support(batch_size, gpu, wave_rnn, dataset)
+        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
     def test_train(self):
         def _first_hook(o):
@@ -102,7 +106,7 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
         wave_rnn = _create_network(local_size=2 * scale, upconv_scales=self.scales)
         dataset = DownLocalRandomDataset(sampling_length=sampling_length, scale=scale)
 
-        self.updater, self.reporter = setup_support(batch_size, gpu, wave_rnn, dataset)
+        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
     def test_train(self):
         def _first_hook(o):
