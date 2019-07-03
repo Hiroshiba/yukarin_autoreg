@@ -1,13 +1,13 @@
-import multiprocessing
-
 import argparse
 import glob
-import librosa
-import numpy as np
-import tqdm
+import multiprocessing
 from functools import partial
 from pathlib import Path
 from typing import Optional
+
+import librosa
+import numpy as np
+import tqdm
 
 from utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave

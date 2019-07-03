@@ -1,15 +1,15 @@
-from itertools import starmap
-
 import argparse
 import glob
-import numpy as np
 import re
 from functools import partial
+from itertools import starmap
 from pathlib import Path
 from typing import List
 
+import numpy as np
+
 from yukarin_autoreg.config import create_from_json as create_config
-from yukarin_autoreg.generator import Generator
+from yukarin_autoreg.generator import Generator, SamplingPolicy
 from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave
@@ -20,7 +20,7 @@ parser.add_argument('--model_iterations', '-mi', nargs='*', type=int)
 parser.add_argument('--model_config', '-mc', type=Path)
 parser.add_argument('--time_length', '-tl', type=float, default=1)
 parser.add_argument('--num_test', '-nt', type=int, default=5)
-parser.add_argument('--sampling_maximum', '-sm', action='store_true')
+parser.add_argument('--sampling_policy', '-sp', type=SamplingPolicy, default=SamplingPolicy.random)
 parser.add_argument('--num_mean_model', '-nmm', type=int, default=1)
 parser.add_argument('--output_dir', '-o', type=Path, default='./output/')
 parser.add_argument('--gpu', type=int)
@@ -31,7 +31,7 @@ model_iterations: List[int] = arguments.model_iterations
 model_config: Path = arguments.model_config
 time_length: int = arguments.time_length
 num_test: int = arguments.num_test
-sampling_maximum: bool = arguments.sampling_maximum
+sampling_policy: SamplingPolicy = arguments.sampling_policy
 num_mean_model: int = arguments.num_mean_model
 output_dir: Path = arguments.output_dir
 gpu: int = arguments.gpu
@@ -63,7 +63,7 @@ def process_wo_context(local_path: Path, generator: Generator, postfix='_woc'):
         l = SamplingData.load(local_path).array
         wave = generator.generate(
             time_length=time_length,
-            sampling_maximum=sampling_maximum,
+            sampling_policy=sampling_policy,
             local_array=l,
         )
         wave.save(output_dir / (local_path.stem + postfix + '.wav'))
@@ -86,7 +86,7 @@ def process_resume(wave_path: Path, local_path: Path, generator: Generator, samp
 
         wave = generator.generate(
             time_length=time_length,
-            sampling_maximum=sampling_maximum,
+            sampling_policy=sampling_policy,
             coarse=c,
             fine=f,
             local_array=l[l_sl:],

@@ -4,7 +4,7 @@ cupy<6.0.0
 librosa
 pysptk
 matplotlib
-chainerui
 tensorflow
 git+https://github.com/neka-nat/tensorboard-chainer
 pyworld
+tqdm

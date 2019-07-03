@@ -1,5 +1,7 @@
+from collections import deque
+from enum import Enum
 from pathlib import Path
-from typing import List, Union
+from typing import Deque, List, Tuple, Union
 
 import chainer
 import numpy as np
@@ -10,6 +12,12 @@ from yukarin_autoreg.dataset import decode_16bit, encode_16bit, normalize
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.utility.chainer_link_utility import mean_params
 from yukarin_autoreg.wave import Wave
+
+
+class SamplingPolicy(str, Enum):
+    random = 'random'
+    maximum = 'maximum'
+    mix = 'mix'
 
 
 class Generator(object):
@@ -60,7 +68,7 @@ class Generator(object):
     def generate(
             self,
             time_length: float,
-            sampling_maximum: bool,
+            sampling_policy: SamplingPolicy,
             coarse=None,
             fine=None,
             local_array: np.ndarray = None,
@@ -83,6 +91,7 @@ class Generator(object):
         else:
             c, f = coarse, fine
 
+        history: Deque[Tuple[float, float]] = deque(maxlen=2)
         hc, hf = hidden_coarse, hidden_fine
         for i in range(length):
             c, f, hc, hf = self.model.forward_one(
@@ -93,8 +102,26 @@ class Generator(object):
                 hidden_fine=hf,
             )
 
-            c = self.model.sampling(c, maximum=sampling_maximum)
-            f = self.model.sampling(f, maximum=sampling_maximum)
+            if sampling_policy == SamplingPolicy.random:
+                is_random = True
+            elif sampling_policy == SamplingPolicy.maximum:
+                is_random = False
+            elif sampling_policy == SamplingPolicy.mix:
+                if len(history) < 2:
+                    is_random = True
+                elif history[0] == history[1]:
+                    is_random = True
+                else:
+                    is_random = False
+            else:
+                raise ValueError(sampling_policy)
+
+            if is_random:
+                c = self.model.sampling(c, maximum=False)
+                f = self.model.sampling(f, maximum=False)
+            else:
+                c = self.model.sampling(c, maximum=True)
+                f = self.model.sampling(f, maximum=True)
 
             w = decode_16bit(
                 coarse=chainer.cuda.to_cpu(c[0]),
@@ -104,5 +131,6 @@ class Generator(object):
 
             c = normalize(c.astype(np.float32))
             f = normalize(f.astype(np.float32))
+            history.append((c, f))
 
         return Wave(wave=np.array(w_list), sampling_rate=self.sampling_rate)
