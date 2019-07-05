@@ -109,6 +109,8 @@ trainer.extend(ext, name='train', trigger=trigger_log)
 
 ext = extensions.snapshot_object(predictor, filename='main_{.updater.iteration}.npz')
 trainer.extend(ext, trigger=trigger_snapshot)
+ext = extensions.snapshot_object(optimizer, filename='optimizer_{.updater.iteration}.npz')
+trainer.extend(ext, trigger=trigger_snapshot)
 
 trainer.extend(extensions.FailOnNonNumber(), trigger=trigger_log)
 trainer.extend(extensions.observe_lr(), trigger=trigger_log)
