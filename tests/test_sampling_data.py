@@ -37,7 +37,3 @@ class TestSamplingData(unittest.TestCase):
             a = data.resample(sampling_rate=rate * scale, index=index, length=length)
             b = np.repeat(sample, scale, axis=0)[index:index + length]
             np.testing.assert_equal(a, b)
-
-
-if __name__ == '__main__':
-    unittest.main()

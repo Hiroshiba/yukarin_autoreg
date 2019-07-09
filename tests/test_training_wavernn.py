@@ -1,8 +1,9 @@
 import unittest
+from typing import List
 
 import chainer
 import numpy as np
-from typing import List
+from retry import retry
 
 from utility.test_train_utility import DownLocalRandomDataset, LocalRandomDataset, RandomDataset, setup_support, \
     train_support
@@ -42,13 +43,13 @@ def _create_network(
 
 
 class TestTrainingWaveRNN(unittest.TestCase):
-    def setUp(self):
+    @retry(tries=10)
+    def test_train(self):
         wave_rnn = _create_network(local_size=0)
         dataset = SignWaveDataset(sampling_rate=sampling_rate, sampling_length=sampling_length)
 
-        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
+        updater, reporter, network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
-    def test_train(self):
         def _first_hook(o):
             self.assertTrue(o['main/nll_coarse'].data > 4)
             self.assertTrue(o['main/nll_fine'].data > 4)
@@ -57,17 +58,17 @@ class TestTrainingWaveRNN(unittest.TestCase):
             self.assertTrue(o['main/nll_coarse'].data < 1)
             self.assertTrue(o['main/nll_fine'].data < 5)
 
-        train_support(iteration, self.reporter, self.updater, _first_hook, _last_hook)
+        train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
 
 class TestCannotTrainingWaveRNN(unittest.TestCase):
-    def setUp(self):
+    @retry(tries=10)
+    def test_train(self):
         wave_rnn = _create_network(local_size=0)
         dataset = RandomDataset(sampling_length=sampling_length)
 
-        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
+        updater, reporter, network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
-    def test_train(self):
         def _first_hook(o):
             self.assertTrue(o['main/nll_coarse'].data > 4)
             self.assertTrue(o['main/nll_fine'].data > 4)
@@ -76,17 +77,17 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
             self.assertTrue(o['main/nll_coarse'].data > 4)
             self.assertTrue(o['main/nll_fine'].data > 4)
 
-        train_support(iteration, self.reporter, self.updater, _first_hook, _last_hook)
+        train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
 
 class TestLocalTrainingWaveRNN(unittest.TestCase):
-    def setUp(self):
+    @retry(tries=10)
+    def test_train(self):
         wave_rnn = _create_network(local_size=2)
         dataset = LocalRandomDataset(sampling_length=sampling_length)
 
-        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
+        updater, reporter, network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
-    def test_train(self):
         def _first_hook(o):
             self.assertTrue(o['main/nll_coarse'].data > 4)
             self.assertTrue(o['main/nll_fine'].data > 4)
@@ -95,20 +96,19 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
             self.assertTrue(o['main/nll_coarse'].data < 5)
             self.assertTrue(o['main/nll_fine'].data < 5)
 
-        train_support(iteration, self.reporter, self.updater, _first_hook, _last_hook)
+        train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
 
 class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
-    scales = [4]
-
-    def setUp(self):
-        scale = int(np.prod(self.scales))
-        wave_rnn = _create_network(local_size=2 * scale, upconv_scales=self.scales)
+    @retry(tries=10)
+    def test_train(self):
+        scales = [4]
+        scale = int(np.prod(scales))
+        wave_rnn = _create_network(local_size=2 * scale, upconv_scales=scales)
         dataset = DownLocalRandomDataset(sampling_length=sampling_length, scale=scale)
 
-        self.updater, self.reporter, self.network = setup_support(batch_size, gpu, wave_rnn, dataset)
+        updater, reporter, network = setup_support(batch_size, gpu, wave_rnn, dataset)
 
-    def test_train(self):
         def _first_hook(o):
             self.assertTrue(o['main/nll_coarse'].data > 4)
             self.assertTrue(o['main/nll_fine'].data > 4)
@@ -117,8 +117,4 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
             self.assertTrue(o['main/nll_coarse'].data < 5)
             self.assertTrue(o['main/nll_fine'].data < 5)
 
-        train_support(iteration, self.reporter, self.updater, _first_hook, _last_hook)
-
-
-if __name__ == '__main__':
-    unittest.main()
+        train_support(iteration, reporter, updater, _first_hook, _last_hook)

@@ -45,7 +45,7 @@ class MaskGRU(ModifiedNStepGRU):
         return hidden_coarse, hidden_fine
 
     def get_init_hidden(self, batch_size: int, dtype=np.float32):
-        with chainer.cuda.get_device_from_id(self._device_id):
+        with chainer.using_device(self.device):
             hc = chainer.Variable(self.xp.zeros((batch_size, self.out_size // 2), dtype=dtype))
             hf = chainer.Variable(self.xp.zeros((batch_size, self.out_size // 2), dtype=dtype))
         return hc, hf
@@ -54,7 +54,7 @@ class MaskGRU(ModifiedNStepGRU):
         ws = args[3][0]
 
         if self.mask_w is None:
-            with chainer.cuda.get_device_from_id(self._device_id):
+            with chainer.using_device(self.device):
                 mask = self.xp.ones_like(ws[0].data)
             mask[:ws[0].shape[0] // 2, -1] = 0
             self.mask_w = mask

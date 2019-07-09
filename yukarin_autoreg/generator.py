@@ -49,9 +49,6 @@ class Generator(object):
             model.to_gpu(self.gpu)
             cuda.get_device_from_id(self.gpu).use()
 
-        chainer.global_config.train = False
-        chainer.global_config.enable_backprop = False
-
     def forward(self, w: np.ndarray, l: np.ndarray):
         coarse, fine = encode_16bit(self.model.xp.asarray(w))
 
@@ -60,7 +57,9 @@ class Generator(object):
 
         local = self.model.xp.expand_dims(self.model.xp.asarray(l), axis=0)
 
-        c, f, hc, hf = self.model(coarse, fine, local)
+        with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+            c, f, hc, hf = self.model(coarse, fine, local)
+
         c = normalize(self.model.sampling(c[:, :, -1], maximum=True).astype(np.float32))
         f = normalize(self.model.sampling(f[:, :, -1], maximum=True).astype(np.float32))
         return c, f, hc, hf
@@ -81,7 +80,8 @@ class Generator(object):
             local_array = self.model.xp.expand_dims(self.model.xp.empty((length, 0), dtype=np.float32), axis=0)
         else:
             local_array = self.model.xp.expand_dims(self.model.xp.asarray(local_array), axis=0)
-            local_array = self.model.forward_encode(local_array)
+            with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+                local_array = self.model.forward_encode(local_array)
 
         w_list = []
 
@@ -94,13 +94,14 @@ class Generator(object):
         history: Deque[Tuple[float, float]] = deque(maxlen=2)
         hc, hf = hidden_coarse, hidden_fine
         for i in range(length):
-            c, f, hc, hf = self.model.forward_one(
-                prev_c=c,
-                prev_f=f,
-                prev_l=local_array[:, i],
-                hidden_coarse=hc,
-                hidden_fine=hf,
-            )
+            with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+                c, f, hc, hf = self.model.forward_one(
+                    prev_c=c,
+                    prev_f=f,
+                    prev_l=local_array[:, i],
+                    hidden_coarse=hc,
+                    hidden_fine=hf,
+                )
 
             if sampling_policy == SamplingPolicy.random:
                 is_random = True

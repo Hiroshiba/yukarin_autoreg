@@ -119,7 +119,3 @@ class TestMaskGRU(unittest.TestCase):
         )
         np.testing.assert_allclose(hca[:1].data, hcb.data, atol=1e-6)
         np.testing.assert_allclose(hfa[:1].data, hfb.data, atol=1e-6)
-
-
-if __name__ == '__main__':
-    unittest.main()

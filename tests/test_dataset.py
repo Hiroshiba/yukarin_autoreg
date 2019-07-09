@@ -131,7 +131,3 @@ class TestWavesDataset(unittest.TestCase):
 
         for _ in range(10):
             self.assertLess(self.dataset[0]['input_coarse'].sum(), self.dataset[1]['input_coarse'].sum())
-
-
-if __name__ == '__main__':
-    unittest.main()

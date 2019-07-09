@@ -17,6 +17,7 @@ class TestWaveRNN(unittest.TestCase):
             local_size=local_size,
             upconv_scales=[],
             upconv_residual=False,
+            upconv_channel_ksize=0,
             residual_encoder_channel=None,
             residual_encoder_num_block=None,
         )
@@ -138,7 +139,3 @@ class TestWaveRNN(unittest.TestCase):
 
         np.testing.assert_equal(hca.data, hcb.data)
         np.testing.assert_equal(hfa.data, hfb.data)
-
-
-if __name__ == '__main__':
-    unittest.main()

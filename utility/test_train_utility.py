@@ -99,5 +99,6 @@ def train_support(
             if first_hook is not None:
                 first_hook(observation)
 
+    print(observation)
     if last_hook is not None:
         last_hook(observation)

@@ -1,9 +1,8 @@
 import unittest
 from collections import namedtuple
-
 from pathlib import Path
 
-from yukarin_autoreg.generator import Generator
+from yukarin_autoreg.generator import Generator, SamplingPolicy
 
 
 class TestGenerator(unittest.TestCase):
@@ -44,7 +43,20 @@ class TestGenerator(unittest.TestCase):
             gpu=3,
         )
         wave = generator.generate(
-            time_length=1,
-            sampling_maximum=True,
+            time_length=0.3,
+            sampling_policy=SamplingPolicy.random,
         )
-        wave.save(Path('test_generator_audio.wav'))
+        wave.save(Path('test_generator_audio_random.wav'))
+
+        wave = generator.generate(
+            time_length=0.3,
+            sampling_policy=SamplingPolicy.mix,
+        )
+        wave.save(Path('test_generator_audio_mix.wav'))
+
+        wave = generator.generate(
+            time_length=0.3,
+            sampling_policy=SamplingPolicy.maximum,
+        )
+        wave.save(Path('test_generator_audio_maximum.wav'))
+
