@@ -1,8 +1,9 @@
+from typing import List, Optional
+
 import chainer
 import chainer.functions as F
 import chainer.links as L
 import numpy as np
-from typing import List, Optional
 
 from yukarin_autoreg.network.residual_encoder import ResidualEncoder
 from yukarin_autoreg.network.up_conv import UpConv
@@ -10,12 +11,39 @@ from yukarin_autoreg.utility.chainer_initializer_utility import PossibleOrthogon
 from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepGRU
 
 
-def _call_1step(net: ModifiedNStepGRU, hidden, input):
+def _call_1layer(net: ModifiedNStepGRU, hidden, input):
     if hidden is not None:
         hidden = hidden[np.newaxis]
     _, hidden = net(hx=hidden, xs=F.separate(input, axis=0))
     hidden = F.stack(hidden, axis=0)
     return hidden
+
+
+def _call_1step(net: ModifiedNStepGRU, hidden, input):
+    if hidden is None:
+        hidden = net.init_hx(input)[0]
+
+    x = input
+    h = hidden
+    w = net.ws[0]
+    b = net.bs[0]
+
+    xw = F.concat([w[0], w[1], w[2]], axis=0)
+    hw = F.concat([w[3], w[4], w[5]], axis=0)
+    xb = F.concat([b[0], b[1], b[2]], axis=0)
+    hb = F.concat([b[3], b[4], b[5]], axis=0)
+
+    gru_x = F.linear(x, xw, xb)
+    gru_h = F.linear(h, hw, hb)
+
+    W_r_x, W_z_x, W_x = F.split_axis(gru_x, 3, axis=1)
+    U_r_h, U_z_h, U_x = F.split_axis(gru_h, 3, axis=1)
+
+    r = F.sigmoid(W_r_x + U_r_h)
+    z = F.sigmoid(W_z_x + U_z_h)
+    h_bar = F.tanh(W_x + r * U_x)
+    h = F.linear_interpolate(z, hidden, h_bar)
+    return h
 
 
 class WaveRNN(chainer.Chain):
@@ -133,8 +161,8 @@ class WaveRNN(chainer.Chain):
         xf_array = F.concat((xc_array, curr_c_array[:, :, np.newaxis]), axis=2)
 
         # shape: (batch_size, N, half_hidden_size)
-        hidden_coarse = _call_1step(self.R_coarse, hidden_coarse, xc_array)
-        hidden_fine = _call_1step(self.R_fine, hidden_fine, xf_array)
+        hidden_coarse = _call_1layer(self.R_coarse, hidden_coarse, xc_array)
+        hidden_fine = _call_1layer(self.R_fine, hidden_fine, xf_array)
 
         new_hidden_coarse = hidden_coarse[:, -1, :]
         new_hidden_fine = hidden_fine[:, -1, :]
@@ -167,13 +195,12 @@ class WaveRNN(chainer.Chain):
             hidden_fine: float (batch_size, half_hidden_size)
         """
         prev_x = F.concat((prev_c[:, np.newaxis], prev_f[:, np.newaxis], prev_l), axis=1)  # shape: (batch_size, L+1)
-        prev_x = F.expand_dims(prev_x, axis=1)  # shape: (batch_size, 1, L+1)
 
         new_hidden_coarse = _call_1step(
             self.R_coarse,
             hidden_coarse,
             prev_x,
-        )[:, -1]  # shape: (batch_size, half_hidden_size)
+        )  # shape: (batch_size, half_hidden_size)
 
         out_c = self.O2(F.relu(self.O1(new_hidden_coarse)))  # shape: (batch_size, ?)
 
@@ -185,8 +212,8 @@ class WaveRNN(chainer.Chain):
         new_hidden_fine = _call_1step(
             self.R_fine,
             hidden_fine,
-            F.concat((prev_x, curr_c[:, np.newaxis, np.newaxis]), axis=2),
-        )[:, -1]  # shape: (batch_size, half_hidden_size)
+            F.concat((prev_x, curr_c[:, np.newaxis]), axis=1),
+        )  # shape: (batch_size, half_hidden_size)
 
         out_f = self.O4(F.relu(self.O3(new_hidden_fine)))  # shape: (batch_size, ?)
         return out_c, out_f, new_hidden_coarse, new_hidden_fine
