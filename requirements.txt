@@ -1,6 +1,6 @@
 numpy
-chainer>=6.0.0
-cupy>=6.0.0
+chainer>=6.0.0,<7.0.0
+cupy>=6.0.0,<7.0.0
 librosa<0.7.0
 pysptk
 matplotlib

@@ -2,9 +2,11 @@ import argparse
 import time
 from collections import namedtuple
 
+import chainer
+import chainerx
 import numpy as np
-from chainer import cuda
 
+from yukarin_autoreg.dataset import normalize
 from yukarin_autoreg.model import create_predictor
 
 parser = argparse.ArgumentParser()
@@ -15,8 +17,10 @@ gpu: int = arguments.gpu
 
 
 def main():
+    device = f'cuda:{arguments.gpu}'
+
     if arguments.gpu >= 0:
-        cuda.get_device_from_id(arguments.gpu).use()
+        chainerx.using_device(device)
 
     config = namedtuple('ModelConfig', [
         'hidden_size',
@@ -38,22 +42,50 @@ def main():
         residual_encoder_num_block=None,
     )
     model = create_predictor(config)
-    model.to_gpu(arguments.gpu)
+    model.to_device(device)
 
     batch_size = 4
     length = 1024
 
     for i in range(10):
-        c_array = model.xp.random.rand(batch_size, length + 1).astype(np.float32)
-        f_array = model.xp.random.rand(batch_size, length).astype(np.float32)
-        l_array = model.xp.empty((batch_size, length + 1, 0), dtype=np.float32)
+        # # non recurrent
+        # c_array = chainerx.array(np.random.normal(size=(batch_size, length + 1)).astype(np.float32), device=device)
+        # f_array = chainerx.array(np.random.normal(size=(batch_size, length)).astype(np.float32), device=device)
+        # l_array = chainerx.array(np.empty((batch_size, length + 1, 0), dtype=np.float32), device=device)
+        #
+        # start = time.time()
+        # with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+        #     _, _, hidden_coarse, hidden_fine = model(c_array, f_array, l_array)
+        # elapsed = time.time() - start
+        # print(f'non recurrent time: {elapsed}')
+
+        # recurrent
+        c = chainerx.array(np.random.normal(size=(1,)).astype(np.float32), device=device)
+        f = chainerx.array(np.random.normal(size=(1,)).astype(np.float32), device=device)
+        l_array = chainerx.array(np.empty((length, 0), dtype=np.float32)[np.newaxis], device=device)
+
+        hc, hf = None, None
 
         start = time.time()
-        _, _, hidden_coarse, hidden_fine = model(c_array, f_array, l_array)
-        elapsed = time.time() - start
+        for i in range(length):
+            with chainer.using_config('train', False), \
+                 chainer.using_config('enable_backprop', False):
+                c, f, hc, hf = model.forward_one(
+                    prev_c=c,
+                    prev_f=f,
+                    prev_l=l_array[:, i],
+                    hidden_coarse=hc,
+                    hidden_fine=hf,
+                )
 
-        # print(hidden_coarse.data > 0)
-        print(f'elapsed time: {elapsed}')
+            c = model.sampling(c, maximum=True)
+            f = model.sampling(f, maximum=True)
+
+            c = normalize(c.astype(np.float32))
+            f = normalize(f.astype(np.float32))
+
+        elapsed = time.time() - start
+        print(f'recurrent time: {elapsed}')
 
 
 if __name__ == '__main__':
