@@ -23,23 +23,25 @@ def main():
         chainerx.using_device(device)
 
     config = namedtuple('ModelConfig', [
-        'hidden_size',
-        'bit_size',
-        'local_size',
         'upconv_scales',
         'upconv_residual',
         'upconv_channel_ksize',
         'residual_encoder_channel',
         'residual_encoder_num_block',
+        'dual_softmax',
+        'bit_size',
+        'hidden_size',
+        'local_size',
     ])(
-        hidden_size=896,
-        bit_size=16,
-        local_size=0,
         upconv_scales=[],
         upconv_residual=False,
         upconv_channel_ksize=0,
         residual_encoder_channel=None,
         residual_encoder_num_block=None,
+        dual_softmax=True,
+        bit_size=16,
+        hidden_size=896,
+        local_size=0,
     )
     model = create_predictor(config)
     model.to_device(device)
@@ -47,19 +49,22 @@ def main():
     batch_size = 4
     length = 1024
 
+    # non recurrent
     for i in range(10):
-        # # non recurrent
-        # c_array = chainerx.array(np.random.normal(size=(batch_size, length + 1)).astype(np.float32), device=device)
-        # f_array = chainerx.array(np.random.normal(size=(batch_size, length)).astype(np.float32), device=device)
-        # l_array = chainerx.array(np.empty((batch_size, length + 1, 0), dtype=np.float32), device=device)
-        #
-        # start = time.time()
-        # with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-        #     _, _, hidden_coarse, hidden_fine = model(c_array, f_array, l_array)
-        # elapsed = time.time() - start
-        # print(f'non recurrent time: {elapsed}')
+        c_array = chainerx.array(np.random.normal(size=(batch_size, length + 1)).astype(np.float32), device=device)
+        f_array = chainerx.array(np.random.normal(size=(batch_size, length)).astype(np.float32), device=device)
+        l_array = chainerx.array(np.empty((batch_size, length + 1, 0), dtype=np.float32), device=device)
 
-        # recurrent
+        start = time.time()
+        with chainer.using_config('train', False), \
+             chainer.using_config('enable_backprop', False), \
+             chainerx.no_backprop_mode():
+            _, _, hidden_coarse, hidden_fine = model(c_array, f_array, l_array)
+        elapsed = time.time() - start
+        print(f'non recurrent time: {elapsed}')
+
+    # recurrent
+    for i in range(10):
         c = chainerx.array(np.random.normal(size=(1,)).astype(np.float32), device=device)
         f = chainerx.array(np.random.normal(size=(1,)).astype(np.float32), device=device)
         l_array = chainerx.array(np.empty((length, 0), dtype=np.float32)[np.newaxis], device=device)
@@ -69,7 +74,8 @@ def main():
         start = time.time()
         for i in range(length):
             with chainer.using_config('train', False), \
-                 chainer.using_config('enable_backprop', False):
+                 chainer.using_config('enable_backprop', False), \
+                 chainerx.no_backprop_mode():
                 c, f, hc, hf = model.forward_one(
                     prev_c=c,
                     prev_f=f,

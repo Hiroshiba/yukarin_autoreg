@@ -6,9 +6,9 @@ import numpy as np
 from chainer.iterators import MultiprocessIterator
 from chainer.training.updaters import StandardUpdater
 
-from yukarin_autoreg.config import LossConfig
 from yukarin_autoreg.dataset import BaseWaveDataset
 from yukarin_autoreg.model import Model
+from yukarin_autoreg.utility.chainer_converter_utility import concat_optional
 
 
 class RandomDataset(BaseWaveDataset):
@@ -26,17 +26,23 @@ class RandomDataset(BaseWaveDataset):
 class LocalRandomDataset(RandomDataset):
     def get_example(self, i):
         d = super().get_example(i)
-        d['local'] = np.stack((
-            np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
-            np.r_[np.NaN, d['target_fine'].astype(np.float32) / 256],
-        ), axis=1)
+        if self.to_double:
+            d['local'] = np.stack((
+                np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
+                np.r_[np.NaN, d['target_fine'].astype(np.float32) / 256],
+            ), axis=1)
+        else:
+            d['local'] = np.stack((
+                np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
+                np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
+            ), axis=1)
         return d
 
 
 class DownLocalRandomDataset(LocalRandomDataset):
     def __init__(self, scale: int, **kwargs) -> None:
-        self.scale = scale
         super().__init__(**kwargs)
+        self.scale = scale
 
     def get_example(self, i):
         d = super().get_example(i)
@@ -44,6 +50,32 @@ class DownLocalRandomDataset(LocalRandomDataset):
         l[np.isnan(l)] = 0
         d['local'] = l
         return d
+
+
+class SignWaveDataset(BaseWaveDataset):
+    def __init__(
+            self,
+            sampling_rate: int,
+            sampling_length: int,
+            to_double: bool,
+            bit: int,
+    ) -> None:
+        super().__init__(sampling_length=sampling_length, to_double=to_double, bit=bit)
+        self.sampling_rate = sampling_rate
+
+    def __len__(self):
+        return 100
+
+    def get_example(self, i):
+        freq = 440
+        rate = self.sampling_rate
+        length = self.sampling_length
+        rand = np.random.rand()
+
+        wave = np.sin((np.arange(length) * freq / rate + rand) * 2 * np.pi)
+        local = np.empty(shape=(length, 0), dtype=np.float32)
+        silence = np.zeros(shape=(length,), dtype=np.bool)
+        return self.convert_to_dict(wave, silence, local)
 
 
 def _create_optimizer(model):
@@ -55,29 +87,26 @@ def _create_optimizer(model):
 def setup_support(
         batch_size: int,
         gpu: Optional[int],
-        network: chainer.Link,
+        model: Model,
         dataset: chainer.dataset.DatasetMixin,
 ):
-    loss_config = LossConfig(clipping=None, scale_fine=1.0)
-    model = Model(loss_config=loss_config, predictor=network)
     optimizer = _create_optimizer(model)
     train_iter = MultiprocessIterator(dataset, batch_size)
 
     if gpu is not None:
         model.to_gpu(gpu)
 
-    converter = partial(chainer.dataset.convert.concat_examples)
     updater = StandardUpdater(
         device=gpu,
         iterator=train_iter,
         optimizer=optimizer,
-        converter=converter,
+        converter=concat_optional,
     )
 
     reporter = chainer.Reporter()
     reporter.add_observer('main', model)
 
-    return updater, reporter, network
+    return updater, reporter
 
 
 def train_support(

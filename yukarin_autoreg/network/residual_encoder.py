@@ -1,9 +1,6 @@
-from typing import List
-
 import chainer
 import chainer.functions as F
 import chainer.links as L
-import numpy as np
 
 
 class ResBlock(chainer.Chain):
