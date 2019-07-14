@@ -1,22 +1,21 @@
-import multiprocessing
-
 import argparse
+import multiprocessing
+from copy import copy
+from pathlib import Path
+from typing import Any, Dict
+
 import chainer
 from chainer import cuda, optimizer_hooks, optimizers, training
-from chainer.dataset import convert
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions
 from chainer.training.updaters import MultiprocessParallelUpdater, StandardUpdater
-from copy import copy
-from functools import partial
-from pathlib import Path
 from tb_chainer import SummaryWriter
-from typing import Any, Dict
 
 from utility.chainer_extension_utility import TensorBoardReport
-from yukarin_autoreg.config import create_from_json
+from yukarin_autoreg.config import create_from_json, assert_config
 from yukarin_autoreg.dataset import create as create_dataset
 from yukarin_autoreg.model import Model, create_predictor
+from yukarin_autoreg.utility.chainer_converter_utility import concat_optional
 
 parser = argparse.ArgumentParser()
 parser.add_argument('config_json_path', type=Path)
@@ -24,6 +23,7 @@ parser.add_argument('output', type=Path)
 arguments = parser.parse_args()
 
 config = create_from_json(arguments.config_json_path)
+assert_config(config)
 arguments.output.mkdir(exist_ok=True)
 config.save_as_json((arguments.output / 'config.json').absolute())
 
@@ -75,19 +75,18 @@ def create_optimizer(model):
 optimizer = create_optimizer(model)
 
 # updater
-converter = partial(convert.concat_examples)
 if len(config.train.gpu) <= 1:
     updater = StandardUpdater(
         iterator=train_iters[0],
         optimizer=optimizer,
-        converter=converter,
+        converter=concat_optional,
         device=config.train.gpu[0],
     )
 else:
     updater = MultiprocessParallelUpdater(
         iterators=train_iters,
         optimizer=optimizer,
-        converter=converter,
+        converter=concat_optional,
         devices=config.train.gpu,
     )
 
@@ -102,9 +101,9 @@ tb_writer = SummaryWriter(Path(arguments.output))
 if config.train.linear_shift is not None:
     trainer.extend(extensions.LinearShift(**config.train.linear_shift))
 
-ext = extensions.Evaluator(test_iter, model, converter, device=config.train.gpu[0])
+ext = extensions.Evaluator(test_iter, model, concat_optional, device=config.train.gpu[0])
 trainer.extend(ext, name='test', trigger=trigger_log)
-ext = extensions.Evaluator(train_eval_iter, model, converter, device=config.train.gpu[0])
+ext = extensions.Evaluator(train_eval_iter, model, concat_optional, device=config.train.gpu[0])
 trainer.extend(ext, name='train', trigger=trigger_log)
 
 ext = extensions.snapshot_object(predictor, filename='main_{.updater.iteration}.npz')
@@ -115,9 +114,10 @@ trainer.extend(ext, trigger=trigger_snapshot)
 trainer.extend(extensions.FailOnNonNumber(), trigger=trigger_log)
 trainer.extend(extensions.observe_lr(), trigger=trigger_log)
 trainer.extend(extensions.LogReport(trigger=trigger_log))
+trainer.extend(extensions.PrintReport(['iteration', 'main/loss', 'test/main/loss']), trigger=trigger_log)
 trainer.extend(TensorBoardReport(writer=tb_writer), trigger=trigger_log)
 
-trainer.extend(extensions.dump_graph(root_name="main/loss"))
+trainer.extend(extensions.dump_graph(root_name='main/loss'))
 
 if trigger_stop is not None:
     trainer.extend(extensions.ProgressBar(trigger_stop))

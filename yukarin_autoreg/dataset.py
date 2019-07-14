@@ -1,9 +1,10 @@
-import chainer
 import glob
-import numpy as np
 from functools import partial
 from pathlib import Path
 from typing import List, NamedTuple, Union
+
+import chainer
+import numpy as np
 
 from yukarin_autoreg.config import DatasetConfig
 from yukarin_autoreg.sampling_data import SamplingData
@@ -37,9 +38,12 @@ def encode_16bit(wave):
     return coarse, fine
 
 
-def encode_8bit(wave):
-    coarse = ((wave + 1) * 2 ** 7).astype(np.int32)
-    coarse[coarse == 2 ** 8] = 2 ** 8 - 1
+def encode_single(wave, bit: int = 8):
+    if 8 < bit:
+        wave = wave.astype(np.float64)
+
+    coarse = ((wave + 1) * 2 ** (bit - 1)).astype(np.int32)
+    coarse[coarse == 2 ** bit] = 2 ** bit - 1
     return coarse
 
 
@@ -48,8 +52,8 @@ def decode_16bit(coarse, fine):
     return signal.astype(np.float32)
 
 
-def decode_8bit(coarse):
-    signal = coarse / (2 ** 8 - 1) * 2 - 1
+def decode_single(coarse, bit: int = 8):
+    signal = coarse / (2 ** bit - 1) * 2 - 1
     return signal.astype(np.float32)
 
 
@@ -61,8 +65,12 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
     def __init__(
             self,
             sampling_length: int,
+            to_double: bool,
+            bit: int,
     ) -> None:
         self.sampling_length = sampling_length
+        self.to_double = to_double
+        self.bit = bit
 
     @staticmethod
     def extract_input(sampling_length: int, wave_data: Wave, silence_data: SamplingData, local_data: SamplingData):
@@ -99,14 +107,22 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
             wave[wave < -1.0] = -1.0
         return wave
 
-    @staticmethod
-    def convert_to_dict(wave: np.ndarray, silence: np.ndarray, local: np.ndarray):
-        coarse, fine = encode_16bit(wave)
+    def convert_to_dict(self, wave: np.ndarray, silence: np.ndarray, local: np.ndarray):
+        if self.to_double:
+            assert self.bit == 16
+            coarse, fine = encode_16bit(wave)
+            input_coarse = normalize(coarse).astype(np.float32)
+            input_fine = normalize(fine).astype(np.float32)[:-1]
+        else:
+            coarse = encode_single(wave, bit=self.bit)
+            fine = None
+            input_coarse = wave.ravel().astype(np.float32)
+            input_fine = None
         return dict(
-            input_coarse=normalize(coarse).astype(np.float32),
-            input_fine=normalize(fine).astype(np.float32)[:-1],
+            input_coarse=input_coarse,
+            input_fine=input_fine,
             target_coarse=coarse[1:],
-            target_fine=fine[1:],
+            target_fine=fine[1:] if fine is not None else None,
             silence=silence[1:],
             local=local,
         )
@@ -124,34 +140,16 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
         return d
 
 
-class SignWaveDataset(BaseWaveDataset):
-    def __init__(self, sampling_rate: int, sampling_length: int) -> None:
-        super().__init__(sampling_length=sampling_length)
-        self.sampling_rate = sampling_rate
-
-    def __len__(self):
-        return 100
-
-    def get_example(self, i):
-        freq = 440
-        rate = self.sampling_rate
-        length = self.sampling_length
-        rand = np.random.rand()
-
-        wave = np.sin((np.arange(length) * freq / rate + rand) * 2 * np.pi)
-        local = np.empty(shape=(length, 0), dtype=np.float32)
-        silence = np.zeros(shape=(length,), dtype=np.bool)
-        return self.convert_to_dict(wave, silence, local)
-
-
 class WavesDataset(BaseWaveDataset):
     def __init__(
             self,
             inputs: List[Union[Input, LazyInput]],
             sampling_length: int,
+            to_double: bool,
+            bit: int,
             gaussian_noise_sigma: float,
     ) -> None:
-        super().__init__(sampling_length=sampling_length)
+        super().__init__(sampling_length=sampling_length, to_double=to_double, bit=bit)
         self.inputs = inputs
         self.gaussian_noise_sigma = gaussian_noise_sigma
 
@@ -172,14 +170,8 @@ class WavesDataset(BaseWaveDataset):
 
 
 def create(config: DatasetConfig):
-    assert (config.bit_size == 16 and not config.only_coarse) or (config.bit_size == 8 and config.only_coarse)
-
-    if config.sign_wave_dataset:
-        return {
-            'train': SignWaveDataset(sampling_rate=config.sampling_rate, sampling_length=config.sampling_length),
-            'test': SignWaveDataset(sampling_rate=config.sampling_rate, sampling_length=config.sampling_length),
-            'train_eval': SignWaveDataset(sampling_rate=config.sampling_rate, sampling_length=config.sampling_length),
-        }
+    if not config.only_coarse:
+        assert config.bit_size == 16
 
     wave_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_wave_glob))}
 
@@ -209,6 +201,8 @@ def create(config: DatasetConfig):
     _Dataset = partial(
         WavesDataset,
         sampling_length=config.sampling_length,
+        to_double=not config.only_coarse,
+        bit=config.bit_size,
         gaussian_noise_sigma=config.gaussian_noise_sigma,
     )
     return {

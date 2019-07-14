@@ -16,24 +16,22 @@ class DatasetConfig(NamedTuple):
     only_coarse: bool
     seed: int
     num_test: int
-    sign_wave_dataset: bool
 
 
 class ModelConfig(NamedTuple):
-    hidden_size: int
-    bit_size: int
-    single_softmax: bool
-    local_size: int
     upconv_scales: List[int]
     upconv_residual: bool
     upconv_channel_ksize: int
     residual_encoder_channel: int
     residual_encoder_num_block: int
+    dual_softmax: bool
+    bit_size: int
+    hidden_size: int
+    local_size: int
 
 
 class LossConfig(NamedTuple):
-    clipping: Optional[float]
-    scale_fine: float
+    disable_fine: bool
 
 
 class TrainConfig(NamedTuple):
@@ -88,12 +86,11 @@ def create_from_json(s: Union[str, Path]):
             only_coarse=d['dataset']['only_coarse'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
-            sign_wave_dataset=d['dataset']['sign_wave_dataset'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
-            single_softmax=d['model']['single_softmax'],
+            dual_softmax=d['model']['dual_softmax'],
             local_size=d['model']['local_size'],
             upconv_scales=d['model']['upconv_scales'],
             upconv_residual=d['model']['upconv_residual'],
@@ -102,8 +99,7 @@ def create_from_json(s: Union[str, Path]):
             residual_encoder_num_block=d['model']['residual_encoder_num_block'],
         ),
         loss=LossConfig(
-            clipping=d['loss']['clipping'],
-            scale_fine=d['loss']['scale_fine'],
+            disable_fine=d['loss']['disable_fine'],
         ),
         train=TrainConfig(
             batchsize=d['train']['batchsize'],
@@ -124,9 +120,6 @@ def create_from_json(s: Union[str, Path]):
 
 
 def backward_compatible(d: Dict):
-    if 'sign_wave_dataset' not in d['dataset']:
-        d['dataset']['sign_wave_dataset'] = False
-
     if 'silence_top_db' not in d['dataset']:
         d['dataset']['silence_top_db'] = None
 
@@ -157,9 +150,6 @@ def backward_compatible(d: Dict):
     if 'optimizer_gradient_clipping' not in d['train']:
         d['train']['optimizer_gradient_clipping'] = None
 
-    if 'clipping' not in d['loss']:
-        d['loss']['clipping'] = None
-
     if 'residual_encoder_channel' not in d['model']:
         d['model']['residual_encoder_channel'] = None
 
@@ -172,9 +162,6 @@ def backward_compatible(d: Dict):
     if 'linear_shift' not in d['train']:
         d['train']['linear_shift'] = None
 
-    if 'scale_fine' not in d['loss']:
-        d['loss']['scale_fine'] = 1.0
-
     if 'gaussian_noise_sigma' not in d['dataset']:
         d['dataset']['gaussian_noise_sigma'] = 0.0
 
@@ -184,5 +171,19 @@ def backward_compatible(d: Dict):
     if 'only_coarse' not in d['dataset']:
         d['dataset']['only_coarse'] = False
 
-    if 'single_softmax' not in d['model']:
-        d['model']['single_softmax'] = False
+    if 'dual_softmax' not in d['model']:
+        d['model']['dual_softmax'] = True
+
+    if 'disable_fine' not in d['loss']:
+        d['loss']['disable_fine'] = False
+
+
+def assert_config(config: Config):
+    assert config.dataset.bit_size == config.model.bit_size
+
+    if not config.dataset.only_coarse:
+        assert config.model.dual_softmax
+        assert not config.loss.disable_fine
+    else:
+        assert not config.model.dual_softmax
+        assert config.loss.disable_fine

@@ -1,7 +1,6 @@
 import chainer
 import numpy
 from chainer import initializers, link, variable
-from chainer.backends import cuda
 from chainer.functions.array import permutate, transpose_sequence
 from chainer.initializers import normal
 from chainer.utils import argument
@@ -23,13 +22,17 @@ def permutate_list(lst, indices, inv):
 
 
 class ModifiedNStepRNNBase(link.ChainList):
+    """for initialW"""
+
     def __init__(self, n_layers, in_size, out_size, dropout, initialW=None, initial_bias=None, **kwargs):
-        argument.check_unexpected_kwargs(
-            kwargs, use_cudnn='use_cudnn argument is not supported anymore. '
-                              'Use chainer.using_config',
-            use_bi_direction='use_bi_direction is not supported anymore',
-            activation='activation is not supported anymore')
-        argument.assert_kwargs_empty(kwargs)
+        if kwargs:
+            argument.check_unexpected_kwargs(
+                kwargs,
+                use_cudnn='use_cudnn argument is not supported anymore. '
+                          'Use chainer.using_config',
+                use_bi_direction='use_bi_direction is not supported anymore',
+                activation='activation is not supported anymore')
+            argument.assert_kwargs_empty(kwargs)
 
         if initialW is None:
             W_initializer = normal.LeCunNormal()
@@ -92,20 +95,19 @@ class ModifiedNStepRNNBase(link.ChainList):
     def n_cells(self):
         return NotImplementedError
 
-    def __call__(self, hx, xs, **kwargs):
+    def forward(self, hx, xs, **kwargs):
         (hy,), ys = self._call([hx], xs, **kwargs)
         return hy, ys
 
     def _call(self, hs, xs, **kwargs):
-        argument.check_unexpected_kwargs(
-            kwargs, train='train argument is not supported anymore. '
-                          'Use chainer.using_config')
-        argument.assert_kwargs_empty(kwargs)
+        if kwargs:
+            argument.check_unexpected_kwargs(
+                kwargs, train='train argument is not supported anymore. '
+                              'Use chainer.using_config')
+            argument.assert_kwargs_empty(kwargs)
 
         assert isinstance(xs, (list, tuple))
-        xp = cuda.get_array_module(*(list(hs) + list(xs)))
         indices = argsort_list_descent(xs)
-        indices_array = xp.array(indices)
 
         xs = permutate_list(xs, indices, inv=False)
         hxs = []
@@ -113,7 +115,7 @@ class ModifiedNStepRNNBase(link.ChainList):
             if hx is None:
                 hx = self.init_hx(xs)
             else:
-                hx = permutate.permutate(hx, indices_array, axis=1, inv=False)
+                hx = permutate.permutate(hx, indices, axis=1, inv=False)
             hxs.append(hx)
 
         trans_x = transpose_sequence.transpose_sequence(xs)
@@ -122,7 +124,7 @@ class ModifiedNStepRNNBase(link.ChainList):
                [self.ws, self.bs, trans_x]
         result = self.rnn(*args)
 
-        hys = [permutate.permutate(h, indices_array, axis=1, inv=True)
+        hys = [permutate.permutate(h, indices, axis=1, inv=True)
                for h in result[:-1]]
         trans_y = result[-1]
         ys = transpose_sequence.transpose_sequence(trans_y)
