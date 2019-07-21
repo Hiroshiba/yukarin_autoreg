@@ -1,4 +1,5 @@
 import unittest
+from itertools import product
 
 import numpy as np
 
@@ -10,13 +11,13 @@ hidden_size = 8
 local_size = 5
 
 
-def _make_wave_rnn(dual_softmax: bool):
+def _make_wave_rnn(dual_softmax: bool, upconv: bool, residual_encode: bool):
     wave_rnn = WaveRNN(
-        upconv_scales=[],
-        upconv_residual=False,
-        upconv_channel_ksize=0,
-        residual_encoder_channel=None,
-        residual_encoder_num_block=None,
+        upconv_scales=[1] if upconv else [],
+        upconv_residual=upconv,
+        upconv_channel_ksize=1,
+        residual_encoder_channel=local_size * 2 if residual_encode else None,
+        residual_encoder_num_block=1 if residual_encode else None,
         dual_softmax=dual_softmax,
         bit_size=16 if dual_softmax else 10,
         hidden_size=hidden_size,
@@ -55,14 +56,14 @@ class TestWaveRNN(unittest.TestCase):
         self.curr_c_one = np.random.rand(batch_size, 1).astype(np.float32)
 
     def test_make_wave_rnn(self):
-        for dual_softmax in [True, False]:
-            with self.subTest(dual_softmax=dual_softmax):
-                _make_wave_rnn(dual_softmax=dual_softmax)
+        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
+            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
+                _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
 
     def test_call(self):
-        for dual_softmax in [True, False]:
-            with self.subTest(dual_softmax=dual_softmax):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax)
+        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
+            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
+                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
                 wave_rnn(
                     c_array=self.c_array,
                     f_array=self.f_array[:, :-1] if dual_softmax else None,
@@ -70,28 +71,30 @@ class TestWaveRNN(unittest.TestCase):
                 )
 
     def test_forward_one(self):
-        for dual_softmax in [True, False]:
-            with self.subTest(dual_softmax=dual_softmax):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax)
+        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
+            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
+                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
                 hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
+                l_one = wave_rnn.forward_encode(self.l_one).data
                 wave_rnn.forward_one(
                     self.c_one[:, 0],
                     self.f_one[:, 0] if dual_softmax else None,
-                    self.l_one[:, 0],
+                    l_one[:, 0],
                     hidden_coarse=hidden_coarse,
                     hidden_fine=hidden_fine if dual_softmax else None,
                 )
 
     def test_batchsize1_forward(self):
-        for dual_softmax in [True, False]:
-            with self.subTest(dual_softmax=dual_softmax):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax)
+        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
+            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
+                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
                 hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
+                l_array = wave_rnn.forward_encode(self.l_array).data
 
                 oca, ofa, hca, hfa = wave_rnn.forward_rnn(
                     c_array=self.c_array,
                     f_array=self.f_array if dual_softmax else None,
-                    l_array=self.l_array,
+                    l_array=l_array,
                     curr_c_array=self.curr_c_array if dual_softmax else None,
                     hidden_coarse=hidden_coarse,
                     hidden_fine=hidden_fine if dual_softmax else None,
@@ -100,7 +103,7 @@ class TestWaveRNN(unittest.TestCase):
                 ocb, ofb, hcb, hfb = wave_rnn.forward_rnn(
                     c_array=self.c_array[:1],
                     f_array=self.f_array[:1] if dual_softmax else None,
-                    l_array=self.l_array[:1],
+                    l_array=l_array[:1],
                     curr_c_array=self.curr_c_array[:1] if dual_softmax else None,
                     hidden_coarse=hidden_coarse[:1],
                     hidden_fine=hidden_fine[:1] if dual_softmax else None,
@@ -115,15 +118,16 @@ class TestWaveRNN(unittest.TestCase):
                     np.testing.assert_allclose(hfa.data[:1], hfb.data, atol=1e-6)
 
     def test_batchsize1_forward_one(self):
-        for dual_softmax in [True, False]:
-            with self.subTest(dual_softmax=dual_softmax):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax)
+        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
+            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
+                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
                 hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
+                l_one = wave_rnn.forward_encode(self.l_one).data
 
                 oca, ofa, hca, hfa = wave_rnn.forward_one(
                     self.c_one[:, 0],
                     self.f_one[:, 0] if dual_softmax else None,
-                    self.l_one[:, 0],
+                    l_one[:, 0],
                     self.curr_c_one[:, 0] if dual_softmax else None,
                     hidden_coarse=hidden_coarse,
                     hidden_fine=hidden_fine if dual_softmax else None,
@@ -132,7 +136,7 @@ class TestWaveRNN(unittest.TestCase):
                 ocb, ofb, hcb, hfb = wave_rnn.forward_one(
                     self.c_one[:1, 0],
                     self.f_one[:1, 0] if dual_softmax else None,
-                    self.l_one[:1, 0],
+                    l_one[:1, 0],
                     self.curr_c_one[:1, 0] if dual_softmax else None,
                     hidden_coarse=hidden_coarse[:1],
                     hidden_fine=hidden_fine[:1] if dual_softmax else None,
@@ -146,16 +150,49 @@ class TestWaveRNN(unittest.TestCase):
                 if dual_softmax:
                     np.testing.assert_allclose(hfa.data[:1], hfb.data, atol=1e-6)
 
-    def test_same_forward(self):
-        for dual_softmax in [True, False]:
-            with self.subTest(dual_softmax=dual_softmax):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax)
+    def test_same_call_and_forward(self):
+        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
+            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
+                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
                 hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
+
+                oca, ofa, hca, hfa = wave_rnn(
+                    c_array=self.c_array,
+                    f_array=self.f_array[:, :-1] if dual_softmax else None,
+                    l_array=self.l_array,
+                    hidden_coarse=hidden_coarse,
+                    hidden_fine=hidden_fine if dual_softmax else None,
+                )
+
+                l_array = wave_rnn.forward_encode(self.l_array).data
+                ocb, ofb, hcb, hfb = wave_rnn.forward_rnn(
+                    c_array=self.c_array[:, :-1],
+                    f_array=self.f_array[:, :-1] if dual_softmax else None,
+                    l_array=l_array[:, 1:],
+                    curr_c_array=self.c_array[:, 1:] if dual_softmax else None,
+                    hidden_coarse=hidden_coarse,
+                    hidden_fine=hidden_fine if dual_softmax else None,
+                )
+
+                np.testing.assert_equal(oca.data, ocb.data)
+                if dual_softmax:
+                    np.testing.assert_equal(ofa.data, ofb.data)
+
+                np.testing.assert_equal(hca.data, hcb.data)
+                if dual_softmax:
+                    np.testing.assert_equal(hfa.data, hfb.data)
+
+    def test_same_forward_rnn_and_forward_one(self):
+        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
+            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
+                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
+                hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
+                l_array = wave_rnn.forward_encode(self.l_array).data
 
                 oca, ofa, hca, hfa = wave_rnn.forward_rnn(
                     c_array=self.c_array,
                     f_array=self.f_array if dual_softmax else None,
-                    l_array=self.l_array,
+                    l_array=l_array,
                     curr_c_array=self.curr_c_array if dual_softmax else None,
                     hidden_coarse=hidden_coarse,
                     hidden_fine=hidden_fine if dual_softmax else None,
@@ -165,7 +202,7 @@ class TestWaveRNN(unittest.TestCase):
                 for i, (c, f, l, curr_c) in enumerate(zip(
                         np.split(self.c_array, length, axis=1),
                         np.split(self.f_array, length, axis=1),
-                        np.split(self.l_array, length, axis=1),
+                        np.split(l_array, length, axis=1),
                         np.split(self.curr_c_array, length, axis=1),
                 )):
                     ocb, ofb, hcb, hfb = wave_rnn.forward_one(

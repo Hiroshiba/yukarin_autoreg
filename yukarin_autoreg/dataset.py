@@ -30,7 +30,7 @@ class LazyInput(NamedTuple):
         )
 
 
-def encode_16bit(wave):
+def encode_16bit(wave: np.ndarray):
     encoded = ((wave + 1) * 2 ** 15).astype(np.int32)
     encoded[encoded == 2 ** 16] = 2 ** 16 - 1
     coarse = encoded // 256
@@ -38,7 +38,7 @@ def encode_16bit(wave):
     return coarse, fine
 
 
-def encode_single(wave, bit: int = 8):
+def encode_single(wave: np.ndarray, bit: int = 8):
     if 8 < bit:
         wave = wave.astype(np.float64)
 

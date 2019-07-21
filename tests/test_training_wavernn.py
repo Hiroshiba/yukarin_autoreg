@@ -3,6 +3,7 @@ from typing import List
 
 import chainer
 import numpy as np
+from chainer import serializers
 from retry import retry
 
 from tests.utility import DownLocalRandomDataset, LocalRandomDataset, RandomDataset, setup_support, \
@@ -77,6 +78,12 @@ class TestTrainingWaveRNN(unittest.TestCase):
                 self.assertTrue(o['main/nll_fine'].data < 5)
 
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
+
+        # save model
+        serializers.save_npz(
+            f'TestTrainingWaveRNN-to_double={to_double}-bit={bit}-iteration={iteration}.npz',
+            model.predictor,
+        )
 
     def test_train(self):
         for to_double, bit in zip([True, False], [16, 8]):
