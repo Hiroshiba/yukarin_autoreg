@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Union
+from warnings import warn
 
 from yukarin_autoreg.utility.json_utility import JSONEncoder
 
@@ -28,6 +29,7 @@ class ModelConfig(NamedTuple):
     bit_size: int
     hidden_size: int
     local_size: int
+    bug_fixed_gru_dimension: bool = True
 
 
 class LossConfig(NamedTuple):
@@ -97,6 +99,7 @@ def create_from_json(s: Union[str, Path]):
             upconv_channel_ksize=d['model']['upconv_channel_ksize'],
             residual_encoder_channel=d['model']['residual_encoder_channel'],
             residual_encoder_num_block=d['model']['residual_encoder_num_block'],
+            bug_fixed_gru_dimension=d['model']['bug_fixed_gru_dimension'],
         ),
         loss=LossConfig(
             disable_fine=d['loss']['disable_fine'],
@@ -176,6 +179,10 @@ def backward_compatible(d: Dict):
 
     if 'disable_fine' not in d['loss']:
         d['loss']['disable_fine'] = False
+
+    if 'bug_fixed_gru_dimension' not in d['model']:
+        warn('this config is not bug fixed "gru dimension" https://github.com/Hiroshiba/yukarin_autoreg/pull/2')
+        d['model']['bug_fixed_gru_dimension'] = False
 
 
 def assert_config(config: Config):

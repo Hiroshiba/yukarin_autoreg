@@ -82,7 +82,8 @@ class WaveRNN(chainer.Chain):
             ) if (residual_encoder_num_block is not None) and (residual_encoder_channel is not None) else None
             self.R_coarse = ModifiedNStepGRU(
                 n_layers=1,
-                in_size=(2 if self.dual_softmax else 1) + local_size,
+                in_size=(2 if self.dual_softmax else 1) +
+                        (local_size if residual_encoder_channel is None else residual_encoder_channel),
                 out_size=self.single_hidden_size,
                 dropout=0.,
                 initialW=initialW,
@@ -93,7 +94,7 @@ class WaveRNN(chainer.Chain):
             if self.dual_softmax:
                 self.R_fine = ModifiedNStepGRU(
                     n_layers=1,
-                    in_size=3 + local_size,
+                    in_size=3 + (local_size if residual_encoder_channel is None else residual_encoder_channel),
                     out_size=self.single_hidden_size,
                     dropout=0.,
                     initialW=initialW,
