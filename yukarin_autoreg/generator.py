@@ -11,7 +11,6 @@ from yukarin_autoreg.config import Config
 from yukarin_autoreg.dataset import decode_16bit, encode_16bit, normalize
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.utility.chainer_link_utility import mean_params
-from yukarin_autoreg.utility.load_fix_gru_dimension import load_fix_gru_dimension
 from yukarin_autoreg.wave import Wave
 
 
@@ -19,13 +18,6 @@ class SamplingPolicy(str, Enum):
     random = 'random'
     maximum = 'maximum'
     mix = 'mix'
-
-
-def _load_npz(model_path: Path, model: chainer.Chain, bug_fixed_gru_dimension: bool):
-    if bug_fixed_gru_dimension:
-        chainer.serializers.load_npz(str(model_path), model)
-    else:
-        load_fix_gru_dimension(str(model_path), model)
 
 
 class Generator(object):
@@ -42,13 +34,13 @@ class Generator(object):
 
         if isinstance(model_path, Path):
             self.model = model = create_predictor(config.model)
-            _load_npz(model_path, model, config.model.bug_fixed_gru_dimension)
+            chainer.serializers.load_npz(str(model_path), model)
         else:
             # mean weights
             models = []
             for p in model_path:
                 model = create_predictor(config.model)
-                _load_npz(p, model, config.model.bug_fixed_gru_dimension)
+                chainer.serializers.load_npz(str(p), model)
                 models.append(model)
             self.model = model = create_predictor(config.model)
             mean_params(models, model)
