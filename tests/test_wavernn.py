@@ -21,6 +21,7 @@ def _make_wave_rnn(dual_softmax: bool):
         bit_size=16 if dual_softmax else 10,
         hidden_size=hidden_size,
         local_size=local_size,
+        bug_fixed_gru_dimension=True,
     )
 
     # set 'b'

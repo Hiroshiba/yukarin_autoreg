@@ -43,6 +43,7 @@ def _create_model(
         bit_size=bit_size,
         hidden_size=hidden_size,
         local_size=local_size,
+        bug_fixed_gru_dimension=True,
     )
 
     loss_config = LossConfig(
