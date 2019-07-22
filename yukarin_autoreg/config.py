@@ -181,8 +181,12 @@ def backward_compatible(d: Dict):
         d['loss']['disable_fine'] = False
 
     if 'bug_fixed_gru_dimension' not in d['model']:
-        warn('this config is not bug fixed "gru dimension" https://github.com/Hiroshiba/yukarin_autoreg/pull/2')
-        d['model']['bug_fixed_gru_dimension'] = False
+        if d['model']['residual_encoder_channel'] is not None and d['model']['residual_encoder_num_block'] is not None:
+            warn('this config is not bug fixed "gru dimension" https://github.com/Hiroshiba/yukarin_autoreg/pull/2')
+            d['model']['bug_fixed_gru_dimension'] = False
+        else:
+            # no bug
+            d['model']['bug_fixed_gru_dimension'] = True
 
 
 def assert_config(config: Config):

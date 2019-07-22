@@ -13,7 +13,7 @@ from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepGRU
 ArrayLike = Union[np.ndarray, chainer.Variable]
 
 
-def _call_1layer(net: ModifiedNStepGRU, hidden: ArrayLike, input: ArrayLike):
+def _call_1layer(net: ModifiedNStepGRU, hidden: Optional[ArrayLike], input: ArrayLike):
     if hidden is not None:
         hidden = hidden[np.newaxis]
     _, hidden = net(hx=hidden, xs=F.separate(input, axis=0))
@@ -21,7 +21,12 @@ def _call_1layer(net: ModifiedNStepGRU, hidden: ArrayLike, input: ArrayLike):
     return hidden
 
 
-def _call_1step(net: ModifiedNStepGRU, hidden: ArrayLike, input: ArrayLike):
+def _call_1step(net: ModifiedNStepGRU, hidden: ArrayLike, input: ArrayLike, bug_fixed_gru_dimension: bool):
+    if not bug_fixed_gru_dimension:
+        input = F.expand_dims(input, axis=1)
+        hidden = _call_1layer(net, hidden, input)[:, -1]
+        return hidden
+
     if hidden is None:
         hidden = net.init_hx(input)[0]
 
@@ -60,14 +65,21 @@ class WaveRNN(chainer.Chain):
             bit_size: int,
             hidden_size: int,
             local_size: int,
+            bug_fixed_gru_dimension: bool,  # https://github.com/Hiroshiba/yukarin_autoreg/pull/2
     ) -> None:
         super().__init__()
         initialW = PossibleOrthogonal()
+
+        if bug_fixed_gru_dimension and residual_encoder_channel is not None:
+            in_local_size = residual_encoder_channel
+        else:
+            in_local_size = local_size
 
         self.local_size = local_size
         self.dual_softmax = dual_softmax
         self.bit_size = bit_size
         self.hidden_size = hidden_size
+        self.bug_fixed_gru_dimension = bug_fixed_gru_dimension
         with self.init_scope():
             self.upconv = UpConv(
                 scales=upconv_scales,
@@ -82,8 +94,7 @@ class WaveRNN(chainer.Chain):
             ) if (residual_encoder_num_block is not None) and (residual_encoder_channel is not None) else None
             self.R_coarse = ModifiedNStepGRU(
                 n_layers=1,
-                in_size=(2 if self.dual_softmax else 1) +
-                        (local_size if residual_encoder_channel is None else residual_encoder_channel),
+                in_size=(2 if self.dual_softmax else 1) + in_local_size,
                 out_size=self.single_hidden_size,
                 dropout=0.,
                 initialW=initialW,
@@ -94,7 +105,7 @@ class WaveRNN(chainer.Chain):
             if self.dual_softmax:
                 self.R_fine = ModifiedNStepGRU(
                     n_layers=1,
-                    in_size=3 + (local_size if residual_encoder_channel is None else residual_encoder_channel),
+                    in_size=3 + in_local_size,
                     out_size=self.single_hidden_size,
                     dropout=0.,
                     initialW=initialW,
@@ -266,6 +277,7 @@ class WaveRNN(chainer.Chain):
             self.R_coarse,
             hidden_coarse,
             prev_x,
+            bug_fixed_gru_dimension=self.bug_fixed_gru_dimension,
         )  # (batch_size, single_hidden_size)
 
         out_c = self.O2(F.relu(self.O1(new_hidden_coarse)))  # (batch_size, ?)
@@ -280,6 +292,7 @@ class WaveRNN(chainer.Chain):
                 self.R_fine,
                 hidden_fine,
                 F.concat((prev_x, curr_c[:, np.newaxis]), axis=1),
+                bug_fixed_gru_dimension=self.bug_fixed_gru_dimension,
             )  # (batch_size, single_hidden_size)
 
             out_f = self.O4(F.relu(self.O3(new_hidden_fine)))  # (batch_size, ?)

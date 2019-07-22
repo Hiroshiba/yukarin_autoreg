@@ -20,6 +20,7 @@ def create_predictor(config: ModelConfig):
         bit_size=config.bit_size,
         hidden_size=config.hidden_size,
         local_size=config.local_size,
+        bug_fixed_gru_dimension=config.bug_fixed_gru_dimension,
     )
     return predictor
 
