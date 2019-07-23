@@ -1,14 +1,13 @@
-from collections import deque
 from enum import Enum
 from pathlib import Path
-from typing import Deque, List, Tuple, Union
+from typing import List, Union
 
 import chainer
 import numpy as np
 from chainer import cuda
 
 from yukarin_autoreg.config import Config
-from yukarin_autoreg.dataset import decode_16bit, encode_16bit, normalize
+from yukarin_autoreg.dataset import decode_16bit, encode_16bit, normalize, decode_single
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.utility.chainer_link_utility import mean_params
 from yukarin_autoreg.wave import Wave
@@ -50,10 +49,13 @@ class Generator(object):
             cuda.get_device_from_id(self.gpu).use()
 
     def forward(self, w: np.ndarray, l: np.ndarray):
-        coarse, fine = encode_16bit(self.model.xp.asarray(w))
-
-        coarse = self.model.xp.expand_dims(normalize(coarse).astype(np.float32), axis=0)
-        fine = self.model.xp.expand_dims(normalize(fine).astype(np.float32)[:-1], axis=0)
+        if self.model.dual_softmax:
+            coarse, fine = encode_16bit(self.model.xp.asarray(w))
+            coarse = self.model.xp.expand_dims(normalize(coarse).astype(np.float32), axis=0)
+            fine = self.model.xp.expand_dims(normalize(fine).astype(np.float32)[:-1], axis=0)
+        else:
+            coarse = self.model.xp.expand_dims(self.model.xp.asarray(w), axis=0)
+            fine = None
 
         local = self.model.xp.expand_dims(self.model.xp.asarray(l), axis=0)
 
@@ -61,7 +63,10 @@ class Generator(object):
             c, f, hc, hf = self.model(coarse, fine, local)
 
         c = normalize(self.model.sampling(c[:, :, -1], maximum=True).astype(np.float32))
-        f = normalize(self.model.sampling(f[:, :, -1], maximum=True).astype(np.float32))
+        if self.model.dual_softmax:
+            f = normalize(self.model.sampling(f[:, :, -1], maximum=True).astype(np.float32))
+        else:
+            f = None
         return c, f, hc, hf
 
     def generate(
@@ -87,11 +92,13 @@ class Generator(object):
 
         if coarse is None:
             c = self.model.xp.random.rand(1).astype(np.float32)
-            f = self.model.xp.random.rand(1).astype(np.float32)
+            if self.model.dual_softmax:
+                f = self.model.xp.random.rand(1).astype(np.float32)
+            else:
+                f = None
         else:
             c, f = coarse, fine
 
-        history: Deque[Tuple[float, float]] = deque(maxlen=2)
         hc, hf = hidden_coarse, hidden_fine
         for i in range(length):
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
@@ -108,30 +115,29 @@ class Generator(object):
             elif sampling_policy == SamplingPolicy.maximum:
                 is_random = False
             elif sampling_policy == SamplingPolicy.mix:
-                if len(history) < 2:
+                if len(w_list) < 2:
                     is_random = True
-                elif history[0] == history[1]:
+                elif w_list[-2] == w_list[-1]:
                     is_random = True
                 else:
                     is_random = False
             else:
                 raise ValueError(sampling_policy)
 
-            if is_random:
-                c = self.model.sampling(c, maximum=False)
-                f = self.model.sampling(f, maximum=False)
+            c = self.model.sampling(c, maximum=not is_random)
+            if self.model.dual_softmax:
+                f = self.model.sampling(f, maximum=not is_random)
+                w = decode_16bit(
+                    coarse=chainer.cuda.to_cpu(c[0]),
+                    fine=chainer.cuda.to_cpu(f[0]),
+                )
+
+                c = normalize(c.astype(np.float32))
+                f = normalize(f.astype(np.float32))
             else:
-                c = self.model.sampling(c, maximum=True)
-                f = self.model.sampling(f, maximum=True)
+                c = decode_single(c.astype(np.float32), bit=self.model.bit_size)
+                w = chainer.cuda.to_cpu(c[0])
 
-            w = decode_16bit(
-                coarse=chainer.cuda.to_cpu(c[0]),
-                fine=chainer.cuda.to_cpu(f[0]),
-            )
             w_list.append(w)
-
-            c = normalize(c.astype(np.float32))
-            f = normalize(f.astype(np.float32))
-            history.append((c, f))
 
         return Wave(wave=np.array(w_list), sampling_rate=self.sampling_rate)
