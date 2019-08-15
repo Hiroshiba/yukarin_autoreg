@@ -6,7 +6,7 @@ import chainer
 import chainerx
 import numpy as np
 
-from yukarin_autoreg.dataset import normalize
+from yukarin_autoreg.data import decode_single
 from yukarin_autoreg.model import create_predictor
 
 parser = argparse.ArgumentParser()
@@ -87,8 +87,8 @@ def main():
             c = model.sampling(c, maximum=True)
             f = model.sampling(f, maximum=True)
 
-            c = normalize(c.astype(np.float32))
-            f = normalize(f.astype(np.float32))
+            c = decode_single(c.astype(np.float32))
+            f = decode_single(f.astype(np.float32))
 
         elapsed = time.time() - start
         print(f'recurrent time: {elapsed}')

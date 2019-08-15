@@ -15,6 +15,7 @@ class DatasetConfig(NamedTuple):
     bit_size: int
     gaussian_noise_sigma: float
     only_coarse: bool
+    mulaw: bool
     seed: int
     num_test: int
 
@@ -86,6 +87,7 @@ def create_from_json(s: Union[str, Path]):
             bit_size=d['dataset']['bit_size'],
             gaussian_noise_sigma=d['dataset']['gaussian_noise_sigma'],
             only_coarse=d['dataset']['only_coarse'],
+            mulaw=d['dataset']['mulaw'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
         ),
@@ -187,6 +189,9 @@ def backward_compatible(d: Dict):
         else:
             # no bug
             d['model']['bug_fixed_gru_dimension'] = True
+
+    if 'mulaw' not in d['dataset']:
+        d['dataset']['mulaw'] = False
 
 
 def assert_config(config: Config):

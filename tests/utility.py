@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Callable, Dict, Optional
 
 import chainer
@@ -59,8 +58,9 @@ class SignWaveDataset(BaseWaveDataset):
             sampling_length: int,
             to_double: bool,
             bit: int,
+            mulaw: bool,
     ) -> None:
-        super().__init__(sampling_length=sampling_length, to_double=to_double, bit=bit)
+        super().__init__(sampling_length=sampling_length, to_double=to_double, bit=bit, mulaw=mulaw)
         self.sampling_rate = sampling_rate
 
     def __len__(self):
