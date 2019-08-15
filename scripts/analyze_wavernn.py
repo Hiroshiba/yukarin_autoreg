@@ -9,7 +9,7 @@ import numpy as np
 from chainer import cuda
 
 from yukarin_autoreg.config import create_from_json as create_config
-from yukarin_autoreg.dataset import encode_16bit, normalize
+from yukarin_autoreg.data import encode_16bit, decode_single
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.wave import Wave
@@ -80,8 +80,8 @@ def main():
     coarse, fine = encode_16bit(w)
 
     c, f, hc, hf = model(
-        c_array=normalize(model.xp.asarray(coarse)).astype(np.float32)[np.newaxis],
-        f_array=normalize(model.xp.asarray(fine)).astype(np.float32)[:-1][np.newaxis],
+        c_array=decode_single(model.xp.asarray(coarse)).astype(np.float32)[np.newaxis],
+        f_array=decode_single(model.xp.asarray(fine)).astype(np.float32)[:-1][np.newaxis],
         l_array=model.xp.asarray(l)[np.newaxis],
     )
 

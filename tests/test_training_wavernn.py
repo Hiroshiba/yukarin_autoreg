@@ -16,7 +16,6 @@ sampling_rate = 8000
 sampling_length = 880
 
 gpu = 3
-bit_size = 16
 batch_size = 16
 hidden_size = 896
 iteration = 300
@@ -56,13 +55,14 @@ def _create_model(
 
 class TestTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit):
+    def _wrapper(self, to_double, bit, mulaw):
         model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit)
         dataset = SignWaveDataset(
             sampling_rate=sampling_rate,
             sampling_length=sampling_length,
             to_double=to_double,
             bit=bit,
+            mulaw=mulaw,
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
@@ -81,24 +81,29 @@ class TestTrainingWaveRNN(unittest.TestCase):
 
         # save model
         serializers.save_npz(
-            f'TestTrainingWaveRNN-to_double={to_double}-bit={bit}-iteration={iteration}.npz',
+            f'TestTrainingWaveRNN'
+            f'-to_double={to_double}'
+            f'-bit={bit}'
+            f'-mulaw={mulaw}'
+            f'-iteration={iteration}.npz',
             model.predictor,
         )
 
     def test_train(self):
-        for to_double, bit in zip([True, False], [16, 8]):
-            with self.subTest(to_double=to_double, bit=bit):
-                self._wrapper(to_double=to_double, bit=bit)
+        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
 
 
 class TestCannotTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit):
+    def _wrapper(self, to_double, bit, mulaw):
         model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit)
         dataset = RandomDataset(
             sampling_length=sampling_length,
             to_double=to_double,
             bit=bit,
+            mulaw=mulaw,
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
@@ -116,19 +121,20 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit in zip([True, False], [16, 8]):
-            with self.subTest(to_double=to_double, bit=bit):
-                self._wrapper(to_double=to_double, bit=bit)
+        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
 
 
 class TestLocalTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit):
+    def _wrapper(self, to_double, bit, mulaw):
         model = _create_model(local_size=2, dual_softmax=to_double, bit_size=bit)
         dataset = LocalRandomDataset(
             sampling_length=sampling_length,
             to_double=to_double,
             bit=bit,
+            mulaw=mulaw,
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
@@ -146,14 +152,14 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit in zip([True, False], [16, 8]):
-            with self.subTest(to_double=to_double, bit=bit):
-                self._wrapper(to_double=to_double, bit=bit)
+        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
 
 
 class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit):
+    def _wrapper(self, to_double, bit, mulaw):
         scales = [4]
         scale = int(np.prod(scales))
 
@@ -168,6 +174,7 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
             scale=scale,
             to_double=to_double,
             bit=bit,
+            mulaw=mulaw,
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
@@ -185,6 +192,6 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit in zip([True, False], [16, 8]):
-            with self.subTest(to_double=to_double, bit=bit):
-                self._wrapper(to_double=to_double, bit=bit)
+        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)

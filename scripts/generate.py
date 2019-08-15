@@ -38,7 +38,7 @@ gpu: int = arguments.gpu
 
 
 def _extract_number(f):
-    s = re.findall("\d+", str(f))
+    s = re.findall(r'\d+', str(f))
     return int(s[-1]) if s else -1
 
 
@@ -121,6 +121,7 @@ def main():
     if config.dataset.input_wave_glob is not None:
         wave_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_wave_glob))])
         local_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_local_glob))])
+        assert len(wave_paths) > 0
         assert len(wave_paths) == len(local_paths)
 
         np.random.RandomState(config.dataset.seed).shuffle(wave_paths)

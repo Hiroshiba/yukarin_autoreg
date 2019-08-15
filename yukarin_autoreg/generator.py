@@ -7,7 +7,7 @@ import numpy as np
 from chainer import cuda
 
 from yukarin_autoreg.config import Config
-from yukarin_autoreg.dataset import decode_16bit, encode_16bit, normalize, decode_single
+from yukarin_autoreg.data import encode_16bit, decode_16bit, decode_single, encode_mulaw, decode_mulaw
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.utility.chainer_link_utility import mean_params
 from yukarin_autoreg.wave import Wave
@@ -30,6 +30,7 @@ class Generator(object):
         self.gpu = gpu
 
         self.sampling_rate = config.dataset.sampling_rate
+        self.mulaw = config.dataset.mulaw
 
         if isinstance(model_path, Path):
             self.model = model = create_predictor(config.model)
@@ -49,10 +50,13 @@ class Generator(object):
             cuda.get_device_from_id(self.gpu).use()
 
     def forward(self, w: np.ndarray, l: np.ndarray):
+        if self.mulaw:
+            w = encode_mulaw(w, mu=2 ** self.model.bit_size)
+
         if self.model.dual_softmax:
             coarse, fine = encode_16bit(self.model.xp.asarray(w))
-            coarse = self.model.xp.expand_dims(normalize(coarse).astype(np.float32), axis=0)
-            fine = self.model.xp.expand_dims(normalize(fine).astype(np.float32)[:-1], axis=0)
+            coarse = self.model.xp.expand_dims(decode_single(coarse).astype(np.float32), axis=0)
+            fine = self.model.xp.expand_dims(decode_single(fine).astype(np.float32)[:-1], axis=0)
         else:
             coarse = self.model.xp.expand_dims(self.model.xp.asarray(w), axis=0)
             fine = None
@@ -62,9 +66,9 @@ class Generator(object):
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
             c, f, hc, hf = self.model(coarse, fine, local)
 
-        c = normalize(self.model.sampling(c[:, :, -1], maximum=True).astype(np.float32))
+        c = decode_single(self.model.sampling(c[:, :, -1], maximum=True).astype(np.float32))
         if self.model.dual_softmax:
-            f = normalize(self.model.sampling(f[:, :, -1], maximum=True).astype(np.float32))
+            f = decode_single(self.model.sampling(f[:, :, -1], maximum=True).astype(np.float32))
         else:
             f = None
         return c, f, hc, hf
@@ -132,12 +136,16 @@ class Generator(object):
                     fine=chainer.cuda.to_cpu(f[0]),
                 )
 
-                c = normalize(c.astype(np.float32))
-                f = normalize(f.astype(np.float32))
+                c = decode_single(c.astype(np.float32))
+                f = decode_single(f.astype(np.float32))
             else:
                 c = decode_single(c.astype(np.float32), bit=self.model.bit_size)
                 w = chainer.cuda.to_cpu(c[0])
 
             w_list.append(w)
 
-        return Wave(wave=np.array(w_list), sampling_rate=self.sampling_rate)
+        wave = np.array(w_list)
+        if self.mulaw:
+            wave = decode_mulaw(wave, mu=2 ** self.model.bit_size)
+
+        return Wave(wave=wave, sampling_rate=self.sampling_rate)

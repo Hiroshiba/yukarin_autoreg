@@ -7,13 +7,15 @@ from yukarin_autoreg.generator import Generator, SamplingPolicy
 
 class TestGenerator(unittest.TestCase):
     def test_generator(self):
-        for to_double, bit in zip([True, False], [16, 8]):
+        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
             with self.subTest(to_double=to_double, bit=bit):
                 config = namedtuple('Config', ['dataset', 'model'])(
                     dataset=namedtuple('DatasetConfig', [
                         'sampling_rate',
+                        'mulaw',
                     ])(
                         sampling_rate=8000,
+                        mulaw=mulaw,
                     ),
                     model=namedtuple('ModelConfig', [
                         'upconv_scales',
@@ -46,6 +48,7 @@ class TestGenerator(unittest.TestCase):
                         f'tests/data/TestTrainingWaveRNN'
                         f'-to_double={to_double}'
                         f'-bit={bit}'
+                        f'-mulaw={mulaw}'
                         f'-iteration=1000.npz'
                     ),
                     gpu=3,
