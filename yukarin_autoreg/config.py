@@ -35,6 +35,7 @@ class ModelConfig(NamedTuple):
 
 class LossConfig(NamedTuple):
     disable_fine: bool
+    eliminate_silence: bool
 
 
 class TrainConfig(NamedTuple):
@@ -46,6 +47,7 @@ class TrainConfig(NamedTuple):
     optimizer: Dict[str, Any]
     optimizer_gradient_clipping: float
     linear_shift: Dict[str, Any]
+    step_shift: Dict[str, Any]
     trained_model: Optional[str]
 
 
@@ -105,6 +107,7 @@ def create_from_json(s: Union[str, Path]):
         ),
         loss=LossConfig(
             disable_fine=d['loss']['disable_fine'],
+            eliminate_silence=d['loss']['eliminate_silence'],
         ),
         train=TrainConfig(
             batchsize=d['train']['batchsize'],
@@ -115,6 +118,7 @@ def create_from_json(s: Union[str, Path]):
             optimizer=d['train']['optimizer'],
             optimizer_gradient_clipping=d['train']['optimizer_gradient_clipping'],
             linear_shift=d['train']['linear_shift'],
+            step_shift=d['train']['step_shift'],
             trained_model=d['train']['trained_model'],
         ),
         project=ProjectConfig(
@@ -192,6 +196,12 @@ def backward_compatible(d: Dict):
 
     if 'mulaw' not in d['dataset']:
         d['dataset']['mulaw'] = False
+
+    if 'step_shift' not in d['train']:
+        d['train']['step_shift'] = None
+
+    if 'eliminate_silence' not in d['loss']:
+        d['loss']['eliminate_silence'] = True
 
 
 def assert_config(config: Config):

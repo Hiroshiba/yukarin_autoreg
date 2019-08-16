@@ -100,6 +100,8 @@ tb_writer = SummaryWriter(Path(arguments.output))
 
 if config.train.linear_shift is not None:
     trainer.extend(extensions.LinearShift(**config.train.linear_shift))
+if config.train.step_shift is not None:
+    trainer.extend(extensions.StepShift(**config.train.step_shift))
 
 ext = extensions.Evaluator(test_iter, model, concat_optional, device=config.train.gpu[0])
 trainer.extend(ext, name='test', trigger=trigger_log)

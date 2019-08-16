@@ -49,13 +49,17 @@ class Model(Chain):
 
         losses = dict()
 
-        nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')[~silence]
+        nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')
+        if self.loss_config.eliminate_silence:
+            nll_coarse = nll_coarse[~silence]
         losses['nll_coarse'] = F.mean(nll_coarse)
 
         loss = nll_coarse
 
         if not self.loss_config.disable_fine:
-            nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')[~silence]
+            nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')
+            if self.loss_config.eliminate_silence:
+                nll_fine = nll_fine[~silence]
             loss += nll_fine
             losses['nll_fine'] = F.mean(nll_fine)
 
