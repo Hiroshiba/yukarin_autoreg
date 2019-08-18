@@ -59,8 +59,8 @@ class TestBaseWaveDataset(unittest.TestCase):
         d = dataset.convert_to_dict(wave, silence, local)
         self.assertEqual(len(d['input_coarse']), self.sampling_length)
         self.assertEqual(len(d['input_fine']), self.sampling_length - 1)
-        self.assertEqual(len(d['target_coarse']), self.sampling_length - 1)
-        self.assertEqual(len(d['target_fine']), self.sampling_length - 1)
+        self.assertEqual(len(d['encoded_coarse']), self.sampling_length)
+        self.assertEqual(len(d['encoded_fine']), self.sampling_length)
         self.assertEqual(len(d['silence']), self.sampling_length - 1)
         self.assertEqual(len(d['local']), self.sampling_length // self.scale)
 
@@ -68,8 +68,8 @@ class TestBaseWaveDataset(unittest.TestCase):
         d = dataset.convert_to_dict(wave, silence, local)
         self.assertEqual(len(d['input_coarse']), self.sampling_length)
         self.assertIsNone(d['input_fine'])
-        self.assertEqual(len(d['target_coarse']), self.sampling_length - 1)
-        self.assertIsNone(d['target_fine'])
+        self.assertEqual(len(d['encoded_coarse']), self.sampling_length)
+        self.assertIsNone(d['encoded_fine'])
         self.assertEqual(len(d['silence']), self.sampling_length - 1)
         self.assertEqual(len(d['local']), self.sampling_length // self.scale)
 
@@ -107,8 +107,8 @@ class TestWavesDataset(unittest.TestCase):
                 for d in dataset:
                     self.assertEqual(len(d['input_coarse']), self.sampling_length)
                     self.assertEqual(len(d['input_fine']), self.sampling_length - 1)
-                    self.assertEqual(len(d['target_coarse']), self.sampling_length - 1)
-                    self.assertEqual(len(d['target_fine']), self.sampling_length - 1)
+                    self.assertEqual(len(d['encoded_coarse']), self.sampling_length)
+                    self.assertEqual(len(d['encoded_fine']), self.sampling_length)
 
                 self.assertTrue(np.all(dataset[0]['input_coarse'] == -1))
                 self.assertTrue(np.all(dataset[1]['input_coarse'] == 1))
@@ -127,8 +127,8 @@ class TestWavesDataset(unittest.TestCase):
                 for d in dataset:
                     self.assertEqual(len(d['input_coarse']), self.sampling_length)
                     self.assertIsNone(d['input_fine'])
-                    self.assertEqual(len(d['target_coarse']), self.sampling_length - 1)
-                    self.assertIsNone(d['target_fine'])
+                    self.assertEqual(len(d['encoded_coarse']), self.sampling_length)
+                    self.assertIsNone(d['encoded_fine'])
 
                 self.assertTrue(np.all(dataset[0]['input_coarse'] == -1))
                 self.assertTrue(np.all(dataset[1]['input_coarse'] == 1))

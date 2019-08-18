@@ -27,6 +27,7 @@ class TestGenerator(unittest.TestCase):
                         'bit_size',
                         'hidden_size',
                         'local_size',
+                        'use_univ_wavernn',
                         'bug_fixed_gru_dimension',
                     ])(
                         upconv_scales=[],
@@ -38,6 +39,7 @@ class TestGenerator(unittest.TestCase):
                         bit_size=bit,
                         hidden_size=896,
                         local_size=0,
+                        use_univ_wavernn=False,
                         bug_fixed_gru_dimension=False,
                     ),
                 )

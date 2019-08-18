@@ -95,8 +95,8 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
         return dict(
             input_coarse=input_coarse,
             input_fine=input_fine,
-            target_coarse=coarse[1:],
-            target_fine=fine[1:] if fine is not None else None,
+            encoded_coarse=coarse,
+            encoded_fine=fine,
             silence=silence[1:],
             local=local,
         )

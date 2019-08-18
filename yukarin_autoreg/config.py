@@ -30,6 +30,11 @@ class ModelConfig(NamedTuple):
     bit_size: int
     hidden_size: int
     local_size: int
+    use_univ_wavernn: bool
+    conditioning_size: int
+    embedding_size: int
+    linear_hidden_size: int
+    local_scale: int
     bug_fixed_gru_dimension: bool = True
 
 
@@ -103,6 +108,11 @@ def create_from_json(s: Union[str, Path]):
             upconv_channel_ksize=d['model']['upconv_channel_ksize'],
             residual_encoder_channel=d['model']['residual_encoder_channel'],
             residual_encoder_num_block=d['model']['residual_encoder_num_block'],
+            use_univ_wavernn=d['model']['use_univ_wavernn'],
+            conditioning_size=d['model']['conditioning_size'],
+            embedding_size=d['model']['embedding_size'],
+            linear_hidden_size=d['model']['linear_hidden_size'],
+            local_scale=d['model']['local_scale'],
             bug_fixed_gru_dimension=d['model']['bug_fixed_gru_dimension'],
         ),
         loss=LossConfig(
@@ -202,6 +212,21 @@ def backward_compatible(d: Dict):
 
     if 'eliminate_silence' not in d['loss']:
         d['loss']['eliminate_silence'] = True
+
+    if 'use_univ_wavernn' not in d['model']:
+        d['model']['use_univ_wavernn'] = False
+
+    if 'conditioning_size' not in d['model']:
+        d['model']['conditioning_size'] = None
+
+    if 'embedding_size' not in d['model']:
+        d['model']['embedding_size'] = None
+
+    if 'linear_hidden_size' not in d['model']:
+        d['model']['linear_hidden_size'] = None
+
+    if 'local_scale' not in d['model']:
+        d['model']['local_scale'] = None
 
 
 def assert_config(config: Config):

@@ -2,7 +2,6 @@ import unittest
 from itertools import product
 
 import numpy as np
-from chainer import serializers
 
 from yukarin_autoreg.network import WaveRNN
 
@@ -10,10 +9,6 @@ batch_size = 2
 length = 3
 hidden_size = 8
 local_size = 5
-
-
-def _get_model_name(dual_softmax: bool, upconv: bool, residual_encode: bool):
-    return f'TestWaveRNN-dual_softmax={dual_softmax}-upconv={upconv}-residual_encode={residual_encode}'
 
 
 def _make_wave_rnn(dual_softmax: bool, upconv: bool, residual_encode: bool):
@@ -227,56 +222,3 @@ class TestWaveRNN(unittest.TestCase):
                 np.testing.assert_equal(hca.data, hcb.data)
                 if dual_softmax:
                     np.testing.assert_equal(hfa.data, hfb.data)
-
-
-class TestLoadWaveRNN(unittest.TestCase):
-    @staticmethod
-    def _forward(wave_rnn: WaveRNN, dual_softmax: bool):
-        rand = np.random.RandomState(seed=0)
-        c_array = rand.rand(batch_size, length).astype(np.float32)
-        f_array = rand.rand(batch_size, length).astype(np.float32)
-        l_array = rand.rand(batch_size, length, local_size).astype(np.float32)
-        hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax, seed=0)
-        oc, of, hc, hf = wave_rnn(
-            c_array=c_array,
-            f_array=f_array[:, :-1] if dual_softmax else None,
-            l_array=l_array,
-            hidden_coarse=hidden_coarse,
-            hidden_fine=hidden_fine if dual_softmax else None,
-        )
-        return dict(oc=oc, of=of, hc=hc, hf=hf)
-
-    @staticmethod
-    def _forward_one(wave_rnn: WaveRNN, dual_softmax: bool):
-        rand = np.random.RandomState(seed=0)
-        c_one = rand.rand(batch_size, 1).astype(np.float32)
-        f_one = rand.rand(batch_size, 1).astype(np.float32)
-        l_one = rand.rand(batch_size, 1, local_size).astype(np.float32)
-        curr_c_one = rand.rand(batch_size, 1).astype(np.float32)
-        hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax, seed=0)
-        oc, of, hc, hf = wave_rnn.forward_one(
-            c_one[:, 0],
-            f_one[:, 0] if dual_softmax else None,
-            l_one[:, 0],
-            curr_c_one[:, 0] if dual_softmax else None,
-            hidden_coarse=hidden_coarse,
-            hidden_fine=hidden_fine if dual_softmax else None,
-        )
-        return dict(oc=oc, of=of, hc=hc, hf=hf)
-
-    @classmethod
-    def _remake(cls):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            name = _get_model_name(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-
-            wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-            serializers.save_npz(f'{name}.npz', wave_rnn)
-
-            output = cls._forward(wave_rnn=wave_rnn, dual_softmax=dual_softmax)
-            np.savez(f'{name}-output.npz', **output)
-
-            output_one = cls._forward_one(wave_rnn=wave_rnn, dual_softmax=dual_softmax)
-            np.savez(f'{name}-output_one.npz', **output_one)
-
-    # def test_load_and_forward(self):
-    #
