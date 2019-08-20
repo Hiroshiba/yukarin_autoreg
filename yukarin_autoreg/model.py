@@ -26,6 +26,7 @@ def create_predictor(config: ModelConfig):
         )
     else:
         predictor = UnivWaveRNN(
+            dual_softmax=config.dual_softmax,
             bit_size=config.bit_size,
             conditioning_size=config.conditioning_size,
             embedding_size=config.embedding_size,

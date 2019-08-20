@@ -14,6 +14,7 @@ ArrayLike = Union[np.ndarray, chainer.Variable]
 class UnivWaveRNN(chainer.Chain):
     def __init__(
             self,
+            dual_softmax: bool,
             bit_size: int,
             conditioning_size: int,
             embedding_size: int,
@@ -23,7 +24,9 @@ class UnivWaveRNN(chainer.Chain):
             local_scale: int,
     ) -> None:
         super().__init__()
+        assert not dual_softmax
 
+        self.dual_softmax = dual_softmax
         self.bit_size = bit_size
         self.conditioning_size = conditioning_size
         self.embedding_size = embedding_size
@@ -41,7 +44,7 @@ class UnivWaveRNN(chainer.Chain):
             self.x_embedder = EmbedID(self.bins, embedding_size)
             self.gru = NStepGRU(
                 n_layers=1,
-                in_size=embedding_size + 2 * conditioning_size,
+                in_size=embedding_size + (2 * conditioning_size if local_size > 0 else 0),
                 out_size=hidden_size,
                 dropout=0,
             )

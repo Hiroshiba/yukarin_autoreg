@@ -13,6 +13,7 @@ bit_size = 9
 
 def _make_univ_wave_rnn():
     wave_rnn = UnivWaveRNN(
+        dual_softmax=False,
         bit_size=bit_size,
         conditioning_size=7,
         embedding_size=32,

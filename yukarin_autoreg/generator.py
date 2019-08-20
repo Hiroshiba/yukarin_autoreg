@@ -7,8 +7,9 @@ import numpy as np
 from chainer import cuda
 
 from yukarin_autoreg.config import Config
-from yukarin_autoreg.data import encode_16bit, decode_16bit, decode_single, encode_mulaw, decode_mulaw
+from yukarin_autoreg.data import encode_16bit, decode_16bit, decode_single, encode_mulaw, decode_mulaw, encode_single
 from yukarin_autoreg.model import create_predictor
+from yukarin_autoreg.network import WaveRNN
 from yukarin_autoreg.utility.chainer_link_utility import mean_params
 from yukarin_autoreg.wave import Wave
 
@@ -49,26 +50,40 @@ class Generator(object):
             model.to_gpu(self.gpu)
             cuda.get_device_from_id(self.gpu).use()
 
+    @property
+    def dual_softmax(self):
+        return self.model.dual_softmax
+
+    @property
+    def single_bit(self):
+        return self.model.bit_size // (2 if self.dual_softmax else 1)
+
     def forward(self, w: np.ndarray, l: np.ndarray):
         if self.mulaw:
             w = encode_mulaw(w, mu=2 ** self.model.bit_size)
+            w = self.model.xp.expand_dims(self.model.xp.asarray(w), axis=0)
 
-        if self.model.dual_softmax:
-            coarse, fine = encode_16bit(self.model.xp.asarray(w))
-            coarse = self.model.xp.expand_dims(decode_single(coarse).astype(np.float32), axis=0)
-            fine = self.model.xp.expand_dims(decode_single(fine).astype(np.float32)[:-1], axis=0)
+        if self.dual_softmax:
+            encoded_coarse, encoded_fine = encode_16bit(w)
+            coarse = decode_single(encoded_coarse)
+            fine = decode_single(encoded_fine)[:-1]
         else:
-            coarse = self.model.xp.expand_dims(self.model.xp.asarray(w), axis=0)
+            encoded_coarse = encode_single(w, bit=self.single_bit)
+            coarse = w
             fine = None
 
         local = self.model.xp.expand_dims(self.model.xp.asarray(l), axis=0)
 
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-            c, f, hc, hf = self.model(coarse, fine, local)
+            if isinstance(self.model, WaveRNN):
+                c, f, hc, hf = self.model(coarse, fine, local)
+            else:
+                c, hc = self.model(encoded_coarse, local)
+                f, hf = None, None
 
-        c = decode_single(self.model.sampling(c[:, :, -1], maximum=True).astype(np.float32))
-        if self.model.dual_softmax:
-            f = decode_single(self.model.sampling(f[:, :, -1], maximum=True).astype(np.float32))
+        c = self.model.sampling(c[:, :, -1], maximum=True)
+        if self.dual_softmax:
+            f = self.model.sampling(f[:, :, -1], maximum=True)
         else:
             f = None
         return c, f, hc, hf
@@ -95,10 +110,10 @@ class Generator(object):
         w_list = []
 
         if coarse is None:
-            c = self.model.xp.random.rand(1).astype(np.float32)
-            if self.model.dual_softmax:
-                f = self.model.xp.random.rand(1).astype(np.float32)
+            if self.dual_softmax:
+                c, f = encode_16bit(self.model.xp.zeros([1], dtype=np.float32))
             else:
+                c = encode_single(self.model.xp.zeros([1], dtype=np.float32), bit=self.single_bit)
                 f = None
         else:
             c, f = coarse, fine
@@ -106,13 +121,25 @@ class Generator(object):
         hc, hf = hidden_coarse, hidden_fine
         for i in range(length):
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                c, f, hc, hf = self.model.forward_one(
-                    prev_c=c,
-                    prev_f=f,
-                    prev_l=local_array[:, i],
-                    hidden_coarse=hc,
-                    hidden_fine=hf,
-                )
+                if isinstance(self.model, WaveRNN):
+                    c = decode_single(c.astype(np.float32), bit=self.single_bit)
+                    if self.dual_softmax:
+                        f = decode_single(f.astype(np.float32), bit=self.single_bit)
+
+                    c, f, hc, hf = self.model.forward_one(
+                        prev_c=c,
+                        prev_f=f,
+                        prev_l=local_array[:, i],
+                        hidden_coarse=hc,
+                        hidden_fine=hf,
+                    )
+                else:
+                    c, hc = self.model.forward_one(
+                        prev_x=c,
+                        prev_l=local_array[:, i],
+                        hidden=hc,
+                    )
+                    f, hf = None, None
 
             if sampling_policy == SamplingPolicy.random:
                 is_random = True
@@ -129,23 +156,19 @@ class Generator(object):
                 raise ValueError(sampling_policy)
 
             c = self.model.sampling(c, maximum=not is_random)
-            if self.model.dual_softmax:
+            if self.dual_softmax:
                 f = self.model.sampling(f, maximum=not is_random)
                 w = decode_16bit(
                     coarse=chainer.cuda.to_cpu(c[0]),
                     fine=chainer.cuda.to_cpu(f[0]),
                 )
-
-                c = decode_single(c.astype(np.float32))
-                f = decode_single(f.astype(np.float32))
             else:
-                c = decode_single(c.astype(np.float32), bit=self.model.bit_size)
-                w = chainer.cuda.to_cpu(c[0])
+                w = decode_single(chainer.cuda.to_cpu(c[0]), bit=self.single_bit)
 
             w_list.append(w)
 
         wave = np.array(w_list)
         if self.mulaw:
-            wave = decode_mulaw(wave, mu=2 ** self.model.bit_size)
+            wave = decode_mulaw(wave, mu=2 ** self.single_bit)
 
         return Wave(wave=wave, sampling_rate=self.sampling_rate)

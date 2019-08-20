@@ -47,6 +47,7 @@ def _create_model(
         )
     else:
         network = UnivWaveRNN(
+            dual_softmax=dual_softmax,
             bit_size=bit_size,
             conditioning_size=128,
             embedding_size=256,

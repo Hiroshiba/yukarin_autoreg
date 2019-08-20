@@ -4,11 +4,18 @@ from pathlib import Path
 
 from yukarin_autoreg.generator import Generator, SamplingPolicy
 
+gpu = 3
+
 
 class TestGenerator(unittest.TestCase):
     def test_generator(self):
-        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
-            with self.subTest(to_double=to_double, bit=bit):
+        for to_double, bit, mulaw, use_univ in (
+                (True, 16, False, False),
+                (False, 8, False, False),
+                (False, 8, True, False),
+                (False, 9, True, True),
+        ):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ):
                 config = namedtuple('Config', ['dataset', 'model'])(
                     dataset=namedtuple('DatasetConfig', [
                         'sampling_rate',
@@ -28,6 +35,10 @@ class TestGenerator(unittest.TestCase):
                         'hidden_size',
                         'local_size',
                         'use_univ_wavernn',
+                        'conditioning_size',
+                        'embedding_size',
+                        'linear_hidden_size',
+                        'local_scale',
                         'bug_fixed_gru_dimension',
                     ])(
                         upconv_scales=[],
@@ -39,8 +50,12 @@ class TestGenerator(unittest.TestCase):
                         bit_size=bit,
                         hidden_size=896,
                         local_size=0,
-                        use_univ_wavernn=False,
-                        bug_fixed_gru_dimension=False,
+                        use_univ_wavernn=use_univ,
+                        conditioning_size=128,
+                        embedding_size=256,
+                        linear_hidden_size=512,
+                        local_scale=1,
+                        bug_fixed_gru_dimension=True,
                     ),
                 )
 
@@ -51,9 +66,10 @@ class TestGenerator(unittest.TestCase):
                         f'-to_double={to_double}'
                         f'-bit={bit}'
                         f'-mulaw={mulaw}'
+                        f'-use_univ={use_univ}'
                         f'-iteration=1000.npz'
                     ),
-                    gpu=3,
+                    gpu=gpu,
                 )
 
                 for sampling_policy in SamplingPolicy.__members__.values():
@@ -66,5 +82,8 @@ class TestGenerator(unittest.TestCase):
                             f'test_generator_audio'
                             f'-sampling_policy={sampling_policy}'
                             f'-to_double={to_double}'
-                            f'-bit={bit}.wav'
+                            f'-bit={bit}'
+                            f'-mulaw={mulaw}'
+                            f'-use_univ={use_univ}'
+                            '.wav'
                         ))
