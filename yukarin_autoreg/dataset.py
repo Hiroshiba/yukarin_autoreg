@@ -38,19 +38,28 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
             to_double: bool,
             bit: int,
             mulaw: bool,
+            local_padding_size: int,
     ) -> None:
         self.sampling_length = sampling_length
         self.to_double = to_double
         self.bit = bit
         self.mulaw = mulaw
+        self.local_padding_size = local_padding_size
 
     @staticmethod
-    def extract_input(sampling_length: int, wave_data: Wave, silence_data: SamplingData, local_data: SamplingData):
+    def extract_input(
+            sampling_length: int,
+            wave_data: Wave,
+            silence_data: SamplingData,
+            local_data: SamplingData,
+            local_padding_size: int,
+            padding_value=0,
+    ):
         """
         :return:
             wave: (sampling_length, )
             silence: (sampling_length, )
-            local: (sampling_length // scale, )
+            local: (sampling_length // scale + pad, )
         """
         sr = wave_data.sampling_rate
         sl = sampling_length
@@ -66,9 +75,32 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
         l_offset = np.random.randint(l_length - l_sl)
         offset = l_offset * l_scale
 
+        assert local_padding_size % l_scale == 0
+        l_pad = local_padding_size // l_scale
+
         wave = wave_data.wave[offset:offset + sl]
         silence = np.squeeze(silence_data.resample(sr, index=offset, length=sl))
-        local = local_data.array[l_offset:l_offset + l_sl]
+
+        # local
+        l_start, l_end = l_offset - l_pad, l_offset + l_sl + l_pad
+        if l_start < 0 or l_end > l_length:
+            shape = list(local_data.array.shape)
+            shape[0] = l_sl + l_pad * 2
+            local = np.ones(shape=shape, dtype=local_data.array.dtype) * padding_value
+            if l_start < 0:
+                p_start = -l_start
+                l_start = 0
+            else:
+                p_start = 0
+            if l_end > l_length:
+                p_end = l_sl + l_pad * 2 - (l_end - l_length)
+                l_end = l_length
+            else:
+                p_end = l_sl + l_pad * 2
+            local[p_start:p_end] = local_data.array[l_start:l_end]
+        else:
+            local = local_data.array[l_start:l_end]
+
         return wave, silence, local
 
     @staticmethod
@@ -95,10 +127,10 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
         return dict(
             input_coarse=input_coarse,
             input_fine=input_fine,
-            target_coarse=coarse[1:],
-            target_fine=fine[1:] if fine is not None else None,
-            silence=silence[1:],
+            encoded_coarse=coarse,
+            encoded_fine=fine,
             local=local,
+            silence=silence[1:],
         )
 
     def make_input(
@@ -108,7 +140,13 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
             local_data: SamplingData,
             gaussian_noise_sigma: float,
     ):
-        wave, silence, local = self.extract_input(self.sampling_length, wave_data, silence_data, local_data)
+        wave, silence, local = self.extract_input(
+            self.sampling_length,
+            wave_data,
+            silence_data,
+            local_data,
+            self.local_padding_size,
+        )
         wave = self.add_noise(wave=wave, gaussian_noise_sigma=gaussian_noise_sigma)
         d = self.convert_to_dict(wave, silence, local)
         return d
@@ -122,9 +160,16 @@ class WavesDataset(BaseWaveDataset):
             to_double: bool,
             bit: int,
             mulaw: bool,
+            local_padding_size: int,
             gaussian_noise_sigma: float,
     ) -> None:
-        super().__init__(sampling_length=sampling_length, to_double=to_double, bit=bit, mulaw=mulaw)
+        super().__init__(
+            sampling_length=sampling_length,
+            to_double=to_double,
+            bit=bit,
+            mulaw=mulaw,
+            local_padding_size=local_padding_size,
+        )
         self.inputs = inputs
         self.gaussian_noise_sigma = gaussian_noise_sigma
 
@@ -179,6 +224,7 @@ def create(config: DatasetConfig):
         to_double=not config.only_coarse,
         bit=config.bit_size,
         mulaw=config.mulaw,
+        local_padding_size=config.local_padding_size,
         gaussian_noise_sigma=config.gaussian_noise_sigma,
     )
     return {

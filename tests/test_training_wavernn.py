@@ -11,6 +11,7 @@ from tests.utility import DownLocalRandomDataset, LocalRandomDataset, RandomData
 from yukarin_autoreg.config import LossConfig
 from yukarin_autoreg.model import Model
 from yukarin_autoreg.network import WaveRNN
+from yukarin_autoreg.network.univ_wave_rnn import UnivWaveRNN
 
 sampling_rate = 8000
 sampling_length = 880
@@ -26,37 +27,48 @@ if gpu is not None:
 
 def _create_model(
         local_size: int,
-        upconv_scales: List[int] = None,
+        local_scale: int = None,
         dual_softmax=True,
         bit_size=16,
+        use_univ=False,
 ):
-    if upconv_scales is None:
-        upconv_scales = []
-
-    network = WaveRNN(
-        upconv_scales=upconv_scales,
-        upconv_residual=len(upconv_scales) > 0,
-        upconv_channel_ksize=3,
-        residual_encoder_channel=None,
-        residual_encoder_num_block=None,
-        dual_softmax=dual_softmax,
-        bit_size=bit_size,
-        hidden_size=hidden_size,
-        local_size=local_size,
-        bug_fixed_gru_dimension=True,
-    )
+    if not use_univ:
+        network = WaveRNN(
+            upconv_scales=[local_scale] if local_scale is not None else [],
+            upconv_residual=local_scale is not None,
+            upconv_channel_ksize=3,
+            residual_encoder_channel=None,
+            residual_encoder_num_block=None,
+            dual_softmax=dual_softmax,
+            bit_size=bit_size,
+            hidden_size=hidden_size,
+            local_size=local_size,
+            bug_fixed_gru_dimension=True,
+        )
+    else:
+        network = UnivWaveRNN(
+            dual_softmax=dual_softmax,
+            bit_size=bit_size,
+            conditioning_size=128,
+            embedding_size=256,
+            hidden_size=hidden_size,
+            linear_hidden_size=512,
+            local_size=local_size,
+            local_scale=local_scale if local_scale is not None else 1,
+        )
 
     loss_config = LossConfig(
         disable_fine=not dual_softmax,
+        eliminate_silence=False,
     )
-    model = Model(loss_config=loss_config, predictor=network)
+    model = Model(loss_config=loss_config, predictor=network, local_padding_size=0)
     return model
 
 
 class TestTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
-        model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit)
+    def _wrapper(self, to_double, bit, mulaw, use_univ):
+        model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit, use_univ=use_univ)
         dataset = SignWaveDataset(
             sampling_rate=sampling_rate,
             sampling_length=sampling_length,
@@ -85,20 +97,26 @@ class TestTrainingWaveRNN(unittest.TestCase):
             f'-to_double={to_double}'
             f'-bit={bit}'
             f'-mulaw={mulaw}'
+            f'-use_univ={use_univ}'
             f'-iteration={iteration}.npz',
             model.predictor,
         )
 
     def test_train(self):
-        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+        for to_double, bit, mulaw, use_univ in (
+                (True, 16, False, False),
+                (False, 8, False, False),
+                (False, 8, True, False),
+                (False, 9, True, True),
+        ):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ)
 
 
 class TestCannotTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
-        model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit)
+    def _wrapper(self, to_double, bit, mulaw, use_univ):
+        model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit, use_univ=use_univ)
         dataset = RandomDataset(
             sampling_length=sampling_length,
             to_double=to_double,
@@ -121,15 +139,20 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+        for to_double, bit, mulaw, use_univ in (
+                (True, 16, False, False),
+                (False, 8, False, False),
+                (False, 8, True, False),
+                (False, 9, True, True),
+        ):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ)
 
 
 class TestLocalTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
-        model = _create_model(local_size=2, dual_softmax=to_double, bit_size=bit)
+    def _wrapper(self, to_double, bit, mulaw, use_univ):
+        model = _create_model(local_size=2, dual_softmax=to_double, bit_size=bit, use_univ=use_univ)
         dataset = LocalRandomDataset(
             sampling_length=sampling_length,
             to_double=to_double,
@@ -152,22 +175,27 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+        for to_double, bit, mulaw, use_univ in (
+                (True, 16, False, False),
+                (False, 8, False, False),
+                (False, 8, True, False),
+                (False, 9, True, True),
+        ):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ)
 
 
 class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
-        scales = [4]
-        scale = int(np.prod(scales))
+    def _wrapper(self, to_double, bit, mulaw, use_univ):
+        scale = 4
 
         model = _create_model(
             local_size=2 * scale,
-            upconv_scales=scales,
+            local_scale=scale,
             dual_softmax=to_double,
             bit_size=bit,
+            use_univ=use_univ,
         )
         dataset = DownLocalRandomDataset(
             sampling_length=sampling_length,
@@ -192,6 +220,11 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit, mulaw in zip([True, False, False], [16, 8, 8], [False, False, True]):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+        for to_double, bit, mulaw, use_univ in (
+                (True, 16, False, False),
+                (False, 8, False, False),
+                (False, 8, True, False),
+                (False, 9, True, True),
+        ):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ):
+                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ)

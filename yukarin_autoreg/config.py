@@ -16,6 +16,7 @@ class DatasetConfig(NamedTuple):
     gaussian_noise_sigma: float
     only_coarse: bool
     mulaw: bool
+    local_padding_size: int
     seed: int
     num_test: int
 
@@ -30,11 +31,17 @@ class ModelConfig(NamedTuple):
     bit_size: int
     hidden_size: int
     local_size: int
+    use_univ_wavernn: bool
+    conditioning_size: int
+    embedding_size: int
+    linear_hidden_size: int
+    local_scale: int
     bug_fixed_gru_dimension: bool = True
 
 
 class LossConfig(NamedTuple):
     disable_fine: bool
+    eliminate_silence: bool
 
 
 class TrainConfig(NamedTuple):
@@ -46,6 +53,7 @@ class TrainConfig(NamedTuple):
     optimizer: Dict[str, Any]
     optimizer_gradient_clipping: float
     linear_shift: Dict[str, Any]
+    step_shift: Dict[str, Any]
     trained_model: Optional[str]
 
 
@@ -90,6 +98,7 @@ def create_from_json(s: Union[str, Path]):
             mulaw=d['dataset']['mulaw'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
+            local_padding_size=d['dataset']['local_padding_size'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
@@ -101,10 +110,16 @@ def create_from_json(s: Union[str, Path]):
             upconv_channel_ksize=d['model']['upconv_channel_ksize'],
             residual_encoder_channel=d['model']['residual_encoder_channel'],
             residual_encoder_num_block=d['model']['residual_encoder_num_block'],
+            use_univ_wavernn=d['model']['use_univ_wavernn'],
+            conditioning_size=d['model']['conditioning_size'],
+            embedding_size=d['model']['embedding_size'],
+            linear_hidden_size=d['model']['linear_hidden_size'],
+            local_scale=d['model']['local_scale'],
             bug_fixed_gru_dimension=d['model']['bug_fixed_gru_dimension'],
         ),
         loss=LossConfig(
             disable_fine=d['loss']['disable_fine'],
+            eliminate_silence=d['loss']['eliminate_silence'],
         ),
         train=TrainConfig(
             batchsize=d['train']['batchsize'],
@@ -115,6 +130,7 @@ def create_from_json(s: Union[str, Path]):
             optimizer=d['train']['optimizer'],
             optimizer_gradient_clipping=d['train']['optimizer_gradient_clipping'],
             linear_shift=d['train']['linear_shift'],
+            step_shift=d['train']['step_shift'],
             trained_model=d['train']['trained_model'],
         ),
         project=ProjectConfig(
@@ -192,6 +208,30 @@ def backward_compatible(d: Dict):
 
     if 'mulaw' not in d['dataset']:
         d['dataset']['mulaw'] = False
+
+    if 'step_shift' not in d['train']:
+        d['train']['step_shift'] = None
+
+    if 'eliminate_silence' not in d['loss']:
+        d['loss']['eliminate_silence'] = True
+
+    if 'use_univ_wavernn' not in d['model']:
+        d['model']['use_univ_wavernn'] = False
+
+    if 'conditioning_size' not in d['model']:
+        d['model']['conditioning_size'] = None
+
+    if 'embedding_size' not in d['model']:
+        d['model']['embedding_size'] = None
+
+    if 'linear_hidden_size' not in d['model']:
+        d['model']['linear_hidden_size'] = None
+
+    if 'local_scale' not in d['model']:
+        d['model']['local_scale'] = None
+
+    if 'local_padding_size' not in d['dataset']:
+        d['dataset']['local_padding_size'] = 0
 
 
 def assert_config(config: Config):

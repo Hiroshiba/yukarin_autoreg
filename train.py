@@ -31,7 +31,7 @@ config.save_as_json((arguments.output / 'config.json').absolute())
 predictor = create_predictor(config.model)
 if config.train.trained_model is not None:
     chainer.serializers.load_npz(config.train.trained_model, predictor)
-model = Model(loss_config=config.loss, predictor=predictor)
+model = Model(loss_config=config.loss, predictor=predictor, local_padding_size=config.dataset.local_padding_size)
 
 if len(config.train.gpu) == 1:
     model.to_gpu(config.train.gpu[0])
@@ -100,6 +100,8 @@ tb_writer = SummaryWriter(Path(arguments.output))
 
 if config.train.linear_shift is not None:
     trainer.extend(extensions.LinearShift(**config.train.linear_shift))
+if config.train.step_shift is not None:
+    trainer.extend(extensions.StepShift(**config.train.step_shift))
 
 ext = extensions.Evaluator(test_iter, model, concat_optional, device=config.train.gpu[0])
 trainer.extend(ext, name='test', trigger=trigger_log)

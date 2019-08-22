@@ -27,13 +27,13 @@ class LocalRandomDataset(RandomDataset):
         d = super().get_example(i)
         if self.to_double:
             d['local'] = np.stack((
-                np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
-                np.r_[np.NaN, d['target_fine'].astype(np.float32) / 256],
+                d['encoded_coarse'].astype(np.float32) / 256,
+                d['encoded_fine'].astype(np.float32) / 256,
             ), axis=1)
         else:
             d['local'] = np.stack((
-                np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
-                np.r_[np.NaN, d['target_coarse'].astype(np.float32) / 256],
+                d['encoded_coarse'].astype(np.float32) / 256,
+                d['encoded_coarse'].astype(np.float32) / 256,
             ), axis=1)
         return d
 
@@ -60,7 +60,13 @@ class SignWaveDataset(BaseWaveDataset):
             bit: int,
             mulaw: bool,
     ) -> None:
-        super().__init__(sampling_length=sampling_length, to_double=to_double, bit=bit, mulaw=mulaw)
+        super().__init__(
+            sampling_length=sampling_length,
+            to_double=to_double,
+            bit=bit,
+            mulaw=mulaw,
+            local_padding_size=0,
+        )
         self.sampling_rate = sampling_rate
 
     def __len__(self):
