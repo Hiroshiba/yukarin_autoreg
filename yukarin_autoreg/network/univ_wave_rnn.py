@@ -59,6 +59,7 @@ class UnivWaveRNN(chainer.Chain):
             self,
             x_array: ArrayLike,
             l_array: ArrayLike,
+            local_padding_size: int = 0,
             hidden: ArrayLike = None,
     ):
         """
@@ -66,6 +67,7 @@ class UnivWaveRNN(chainer.Chain):
         l: local
         :param x_array: int (batch_size, N+1)
         :param l_array: float (batch_size, lN, ?)
+        :param local_padding_size:
         :param hidden: float (batch_size, hidden_size)
         :return:
             out_x_array: float (batch_size, bins, N)
@@ -73,7 +75,9 @@ class UnivWaveRNN(chainer.Chain):
         """
         assert l_array.shape[2] == self.local_size, f'{l_array.shape[2]} {self.local_size}'
 
-        l_array = self.forward_encode(l_array)  # (batch_size, N, ?)
+        l_array = self.forward_encode(l_array)  # (batch_size, N + pad, ?)
+        if local_padding_size > 0:
+            l_array = l_array[:, local_padding_size:-local_padding_size]  # (batch_size, N, ?)
         out_x_array, hidden = self.forward_rnn(
             x_array=x_array[:, :-1],
             l_array=l_array[:, 1:],

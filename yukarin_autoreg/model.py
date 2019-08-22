@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import chainer
 import chainer.functions as F
@@ -39,11 +39,17 @@ def create_predictor(config: ModelConfig):
 
 
 class Model(Chain):
-    def __init__(self, loss_config: LossConfig, predictor: Union[WaveRNN, UnivWaveRNN]) -> None:
+    def __init__(
+            self,
+            loss_config: LossConfig,
+            predictor: Union[WaveRNN, UnivWaveRNN],
+            local_padding_size: int,
+    ) -> None:
         super().__init__()
         self.loss_config = loss_config
         with self.init_scope():
             self.predictor = predictor
+        self.local_padding_size = local_padding_size
 
     def __call__(
             self,
@@ -55,6 +61,7 @@ class Model(Chain):
             silence: np.ndarray,
     ):
         if isinstance(self.predictor, WaveRNN):
+            assert self.local_padding_size == 0
             out_c_array, out_f_array, _, _ = self.predictor(
                 c_array=input_coarse,
                 f_array=input_fine,
@@ -65,6 +72,7 @@ class Model(Chain):
             out_c_array, _ = self.predictor(
                 x_array=encoded_coarse,
                 l_array=local,
+                local_padding_size=self.local_padding_size,
             )
             out_f_array = None
 

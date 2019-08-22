@@ -60,7 +60,13 @@ class SignWaveDataset(BaseWaveDataset):
             bit: int,
             mulaw: bool,
     ) -> None:
-        super().__init__(sampling_length=sampling_length, to_double=to_double, bit=bit, mulaw=mulaw)
+        super().__init__(
+            sampling_length=sampling_length,
+            to_double=to_double,
+            bit=bit,
+            mulaw=mulaw,
+            local_padding_size=0,
+        )
         self.sampling_rate = sampling_rate
 
     def __len__(self):

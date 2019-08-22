@@ -31,7 +31,7 @@ config.save_as_json((arguments.output / 'config.json').absolute())
 predictor = create_predictor(config.model)
 if config.train.trained_model is not None:
     chainer.serializers.load_npz(config.train.trained_model, predictor)
-model = Model(loss_config=config.loss, predictor=predictor)
+model = Model(loss_config=config.loss, predictor=predictor, local_padding_size=config.dataset.local_padding_size)
 
 if len(config.train.gpu) == 1:
     model.to_gpu(config.train.gpu[0])

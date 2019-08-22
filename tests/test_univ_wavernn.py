@@ -54,6 +54,28 @@ class TestUnivWaveRNN(unittest.TestCase):
             l_array=self.l_array,
         )
 
+    def test_call_with_local_padding(self):
+        local_padding_size = 5
+
+        wave_rnn = _make_univ_wave_rnn()
+        with self.assertRaises(Exception):
+            wave_rnn(
+                x_array=self.x_array,
+                l_array=self.l_array,
+                local_padding_size=local_padding_size,
+            )
+
+        l_array = np.pad(
+            self.l_array,
+            pad_width=((0, 0), (local_padding_size, local_padding_size), (0, 0)),
+            mode='constant',
+        )
+        wave_rnn(
+            x_array=self.x_array,
+            l_array=l_array,
+            local_padding_size=local_padding_size,
+        )
+
     def test_forward_one(self):
         wave_rnn = _make_univ_wave_rnn()
         hidden = _make_hidden()

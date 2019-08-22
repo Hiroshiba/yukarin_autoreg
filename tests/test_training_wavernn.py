@@ -61,7 +61,7 @@ def _create_model(
         disable_fine=not dual_softmax,
         eliminate_silence=False,
     )
-    model = Model(loss_config=loss_config, predictor=network)
+    model = Model(loss_config=loss_config, predictor=network, local_padding_size=0)
     return model
 
 

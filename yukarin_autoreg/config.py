@@ -16,6 +16,7 @@ class DatasetConfig(NamedTuple):
     gaussian_noise_sigma: float
     only_coarse: bool
     mulaw: bool
+    local_padding_size: int
     seed: int
     num_test: int
 
@@ -97,6 +98,7 @@ def create_from_json(s: Union[str, Path]):
             mulaw=d['dataset']['mulaw'],
             seed=d['dataset']['seed'],
             num_test=d['dataset']['num_test'],
+            local_padding_size=d['dataset']['local_padding_size'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
@@ -227,6 +229,9 @@ def backward_compatible(d: Dict):
 
     if 'local_scale' not in d['model']:
         d['model']['local_scale'] = None
+
+    if 'local_padding_size' not in d['dataset']:
+        d['dataset']['local_padding_size'] = 0
 
 
 def assert_config(config: Config):
