@@ -55,6 +55,7 @@ def _create_model(
             linear_hidden_size=512,
             local_size=local_size,
             local_scale=local_scale if local_scale is not None else 1,
+            local_layer_num=2,
         )
 
     loss_config = LossConfig(

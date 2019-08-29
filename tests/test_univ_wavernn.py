@@ -21,6 +21,7 @@ def _make_univ_wave_rnn():
         linear_hidden_size=11,
         local_size=loal_size,
         local_scale=1,
+        local_layer_num=2,
     )
 
     # set 'b'
