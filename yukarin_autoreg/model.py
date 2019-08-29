@@ -34,6 +34,7 @@ def create_predictor(config: ModelConfig):
             linear_hidden_size=config.linear_hidden_size,
             local_size=config.local_size,
             local_scale=config.local_scale,
+            local_layer_num=config.local_layer_num,
         )
     return predictor
 

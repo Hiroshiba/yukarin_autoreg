@@ -36,6 +36,7 @@ class ModelConfig(NamedTuple):
     embedding_size: int
     linear_hidden_size: int
     local_scale: int
+    local_layer_num: int
     bug_fixed_gru_dimension: bool = True
 
 
@@ -115,6 +116,7 @@ def create_from_json(s: Union[str, Path]):
             embedding_size=d['model']['embedding_size'],
             linear_hidden_size=d['model']['linear_hidden_size'],
             local_scale=d['model']['local_scale'],
+            local_layer_num=d['model']['local_layer_num'],
             bug_fixed_gru_dimension=d['model']['bug_fixed_gru_dimension'],
         ),
         loss=LossConfig(
@@ -232,6 +234,9 @@ def backward_compatible(d: Dict):
 
     if 'local_padding_size' not in d['dataset']:
         d['dataset']['local_padding_size'] = 0
+
+    if 'local_layer_num' not in d['model']:
+        d['model']['local_layer_num'] = 2
 
 
 def assert_config(config: Config):

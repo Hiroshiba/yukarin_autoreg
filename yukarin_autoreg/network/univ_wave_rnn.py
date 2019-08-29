@@ -22,21 +22,18 @@ class UnivWaveRNN(chainer.Chain):
             linear_hidden_size: int,
             local_size: int,
             local_scale: int,
+            local_layer_num: int,
     ) -> None:
         super().__init__()
         assert not dual_softmax
 
         self.dual_softmax = dual_softmax
         self.bit_size = bit_size
-        self.conditioning_size = conditioning_size
-        self.embedding_size = embedding_size
-        self.hidden_size = hidden_size
-        self.linear_hidden_size = linear_hidden_size
         self.local_size = local_size
         self.local_scale = local_scale
         with self.init_scope():
             self.local_gru = NStepBiGRU(
-                n_layers=2,
+                n_layers=local_layer_num,
                 in_size=local_size,
                 out_size=conditioning_size,
                 dropout=0,
