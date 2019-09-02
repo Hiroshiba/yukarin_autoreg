@@ -18,6 +18,7 @@ class DatasetConfig(NamedTuple):
     mulaw: bool
     local_padding_size: int
     seed: int
+    num_train: Optional[int]
     num_test: int
 
 
@@ -98,6 +99,7 @@ def create_from_json(s: Union[str, Path]):
             only_coarse=d['dataset']['only_coarse'],
             mulaw=d['dataset']['mulaw'],
             seed=d['dataset']['seed'],
+            num_train=d['dataset']['num_train'],
             num_test=d['dataset']['num_test'],
             local_padding_size=d['dataset']['local_padding_size'],
         ),
@@ -237,6 +239,9 @@ def backward_compatible(d: Dict):
 
     if 'local_layer_num' not in d['model']:
         d['model']['local_layer_num'] = 2
+
+    if 'num_train' not in d['dataset']:
+        d['dataset']['num_train'] = None
 
 
 def assert_config(config: Config):

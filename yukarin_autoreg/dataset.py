@@ -214,7 +214,9 @@ def create(config: DatasetConfig):
     np.random.RandomState(config.seed).shuffle(inputs)
 
     num_test = config.num_test
-    trains = inputs[num_test:]
+    num_train = config.num_train if config.num_train is not None else len(inputs) - num_test
+
+    trains = inputs[num_test:][:num_train]
     tests = inputs[:num_test]
     evals = trains[:num_test]
 
