@@ -61,6 +61,8 @@ class WaveRNN(chainer.Chain):
             local_size: int,
             local_scale: int,
             local_layer_num: int,
+            speaker_size: int,
+            speaker_embedding_size: int,
             weight_initializer: Optional[Initializer] = None,
     ) -> None:
         super().__init__()
@@ -73,13 +75,16 @@ class WaveRNN(chainer.Chain):
         self.local_size = local_size
         self.local_scale = local_scale
         with self.init_scope():
+            self.speaker_embedder = EmbedID(speaker_size, speaker_embedding_size) if speaker_size > 0 else None
+
             self.local_gru = ModifiedNStepBiGRU(
                 n_layers=local_layer_num,
-                in_size=local_size,
+                in_size=local_size + (speaker_embedding_size if speaker_size > 0 else 0),
                 out_size=conditioning_size,
                 dropout=0,
                 initialW=weight_initializer,
             ) if local_size > 0 else None
+
             self.x_embedder = EmbedID(self.bins, embedding_size, initialW=weight_initializer) if input_categorical else None
             self.gru = ModifiedNStepGRU(
                 n_layers=1,
@@ -99,14 +104,17 @@ class WaveRNN(chainer.Chain):
             self,
             x_array: ArrayLike,
             l_array: ArrayLike,
+            s_one: Optional[ArrayLike] = None,
             local_padding_size: int = 0,
-            hidden: ArrayLike = None,
+            hidden: Optional[ArrayLike] = None,
     ):
         """
         x: wave
         l: local
+        s: speaker
         :param x_array: int (batch_size, N+1)
         :param l_array: float (batch_size, lN, ?)
+        :param s_one: int (batch_size, )
         :param local_padding_size:
         :param hidden: float (batch_size, hidden_size)
         :return:
@@ -115,9 +123,10 @@ class WaveRNN(chainer.Chain):
         """
         assert l_array.shape[2] == self.local_size, f'{l_array.shape[2]} {self.local_size}'
 
-        l_array = self.forward_encode(l_array)  # (batch_size, N + pad, ?)
+        l_array = self.forward_encode(l_array=l_array, s_one=s_one)  # (batch_size, N + pad, ?)
         if local_padding_size > 0:
             l_array = l_array[:, local_padding_size:-local_padding_size]  # (batch_size, N, ?)
+
         out_x_array, hidden = self.forward_rnn(
             x_array=x_array[:, :-1],
             l_array=l_array[:, 1:],
@@ -125,14 +134,36 @@ class WaveRNN(chainer.Chain):
         )
         return out_x_array, hidden
 
-    def forward_encode(self, l_array: ArrayLike):
+    def forward_speaker(self, s_one: ArrayLike):
+        """
+        :param s_one: int (batch_size, )
+        :return:
+            s_one: float (batch_size, ?)
+        """
+        s_one = self.speaker_embedder(s_one)
+        return s_one
+
+    def forward_encode(
+            self,
+            l_array: ArrayLike,
+            s_one: Optional[ArrayLike] = None,
+    ):
         """
         :param l_array: float (batch_size, lN, ?)
+        :param s_one: int (batch_size, )
         :return:
             l_array: float (batch_size, N, ?)
         """
         if self.local_size == 0:
             return l_array
+
+        length = l_array.shape[1]  # lN
+
+        if s_one is not None:
+            s_one = self.speaker_embedder(s_one)  # shape: (batch_size, ?)
+            s_one = F.expand_dims(s_one, axis=1)  # shape: (batch_size, 1, ?)
+            s_array = F.repeat(s_one, length, axis=1)  # shape: (batch_size, lN, ?)
+            l_array = F.concat((l_array, s_array), axis=2)  # (batch_size, lN, ?)
 
         _, l_array = self.local_gru(hx=None, xs=F.separate(l_array, axis=0))
         l_array = F.stack(l_array, axis=0)

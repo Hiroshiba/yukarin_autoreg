@@ -34,6 +34,8 @@ class ModelConfig(NamedTuple):
     linear_hidden_size: int
     local_scale: int
     local_layer_num: int
+    speaker_size: int
+    speaker_embedding_size: int
     weight_initializer: Optional[str]
 
 
@@ -111,6 +113,8 @@ def create_from_json(s: Union[str, Path]):
             linear_hidden_size=d['model']['linear_hidden_size'],
             local_scale=d['model']['local_scale'],
             local_layer_num=d['model']['local_layer_num'],
+            speaker_size=d['model']['speaker_size'],
+            speaker_embedding_size=d['model']['speaker_embedding_size'],
             weight_initializer=d['model']['weight_initializer'],
         ),
         loss=LossConfig(
@@ -217,6 +221,12 @@ def backward_compatible(d: Dict):
 
     if 'fix_contain_not_silence' not in d['dataset']:
         d['dataset']['fix_contain_not_silence'] = False
+
+    if 'speaker_size' not in d['model']:
+        d['model']['speaker_size'] = 0
+
+    if 'speaker_embedding_size' not in d['model']:
+        d['model']['speaker_embedding_size'] = 0
 
 
 def assert_config(config: Config):

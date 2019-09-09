@@ -40,6 +40,8 @@ class TestGenerator(unittest.TestCase):
                         linear_hidden_size=512,
                         local_scale=1,
                         local_layer_num=2,
+                        speaker_size=0,
+                        speaker_embedding_size=0,
                         weight_initializer=None,
                     ),
                 )
