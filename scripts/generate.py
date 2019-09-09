@@ -22,6 +22,7 @@ parser.add_argument('--time_length', '-tl', type=float, default=1)
 parser.add_argument('--num_test', '-nt', type=int, default=5)
 parser.add_argument('--sampling_policy', '-sp', type=SamplingPolicy, default=SamplingPolicy.random)
 parser.add_argument('--num_mean_model', '-nmm', type=int, default=1)
+parser.add_argument('--disable_resume_test', '-drt', action='store_true')
 parser.add_argument('--output_dir', '-o', type=Path, default='./output/')
 parser.add_argument('--gpu', type=int)
 arguments = parser.parse_args()
@@ -33,6 +34,7 @@ time_length: int = arguments.time_length
 num_test: int = arguments.num_test
 sampling_policy: SamplingPolicy = arguments.sampling_policy
 num_mean_model: int = arguments.num_mean_model
+disable_resume_test: bool = arguments.disable_resume_test
 output_dir: Path = arguments.output_dir
 gpu: int = arguments.gpu
 
@@ -137,13 +139,14 @@ def main():
         list(map(process_partial, local_paths))
 
         # resume
-        process_partial = partial(
-            process_resume,
-            generator=generator,
-            sampling_rate=config.dataset.sampling_rate,
-            sampling_length=config.dataset.sampling_rate,
-        )
-        list(starmap(process_partial, zip(wave_paths, local_paths)))
+        if not disable_resume_test:
+            process_partial = partial(
+                process_resume,
+                generator=generator,
+                sampling_rate=config.dataset.sampling_rate,
+                sampling_length=config.dataset.sampling_rate,
+            )
+            list(starmap(process_partial, zip(wave_paths, local_paths)))
 
 
 if __name__ == '__main__':
