@@ -1,8 +1,6 @@
 import unittest
-from typing import List
 
 import chainer
-import numpy as np
 from chainer import serializers
 from retry import retry
 
@@ -16,7 +14,7 @@ from yukarin_autoreg.network.univ_wave_rnn import UnivWaveRNN
 sampling_rate = 8000
 sampling_length = 880
 
-gpu = 3
+gpu = 0
 batch_size = 16
 hidden_size = 896
 iteration = 300
@@ -123,6 +121,7 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
             to_double=to_double,
             bit=bit,
             mulaw=mulaw,
+            local_padding_size=0,
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
@@ -159,6 +158,7 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
             to_double=to_double,
             bit=bit,
             mulaw=mulaw,
+            local_padding_size=0,
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
@@ -204,6 +204,7 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
             to_double=to_double,
             bit=bit,
             mulaw=mulaw,
+            local_padding_size=0,
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)

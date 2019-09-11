@@ -39,6 +39,7 @@ class TestGenerator(unittest.TestCase):
                         'embedding_size',
                         'linear_hidden_size',
                         'local_scale',
+                        'local_layer_num',
                         'bug_fixed_gru_dimension',
                     ])(
                         upconv_scales=[],
@@ -55,6 +56,7 @@ class TestGenerator(unittest.TestCase):
                         embedding_size=256,
                         linear_hidden_size=512,
                         local_scale=1,
+                        local_layer_num=2,
                         bug_fixed_gru_dimension=True,
                     ),
                 )
