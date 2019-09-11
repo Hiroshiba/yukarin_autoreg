@@ -9,13 +9,10 @@ gpu = 3
 
 class TestGenerator(unittest.TestCase):
     def test_generator(self):
-        for to_double, bit, mulaw, use_univ in (
-                (True, 16, False, False),
-                (False, 8, False, False),
-                (False, 8, True, False),
-                (False, 9, True, True),
+        for to_double, bit, mulaw in (
+                (False, 9, True),
         ):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw, use_univ=use_univ):
+            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
                 config = namedtuple('Config', ['dataset', 'model'])(
                     dataset=namedtuple('DatasetConfig', [
                         'sampling_rate',
@@ -25,39 +22,25 @@ class TestGenerator(unittest.TestCase):
                         mulaw=mulaw,
                     ),
                     model=namedtuple('ModelConfig', [
-                        'upconv_scales',
-                        'upconv_residual',
-                        'upconv_channel_ksize',
-                        'residual_encoder_channel',
-                        'residual_encoder_num_block',
                         'dual_softmax',
                         'bit_size',
                         'hidden_size',
                         'local_size',
-                        'use_univ_wavernn',
                         'conditioning_size',
                         'embedding_size',
                         'linear_hidden_size',
                         'local_scale',
                         'local_layer_num',
-                        'bug_fixed_gru_dimension',
                     ])(
-                        upconv_scales=[],
-                        upconv_residual=False,
-                        upconv_channel_ksize=0,
-                        residual_encoder_channel=None,
-                        residual_encoder_num_block=None,
                         dual_softmax=to_double,
                         bit_size=bit,
                         hidden_size=896,
                         local_size=0,
-                        use_univ_wavernn=use_univ,
                         conditioning_size=128,
                         embedding_size=256,
                         linear_hidden_size=512,
                         local_scale=1,
                         local_layer_num=2,
-                        bug_fixed_gru_dimension=True,
                     ),
                 )
 
@@ -68,7 +51,6 @@ class TestGenerator(unittest.TestCase):
                         f'-to_double={to_double}'
                         f'-bit={bit}'
                         f'-mulaw={mulaw}'
-                        f'-use_univ={use_univ}'
                         f'-iteration=1000.npz'
                     ),
                     gpu=gpu,
@@ -86,6 +68,5 @@ class TestGenerator(unittest.TestCase):
                             f'-to_double={to_double}'
                             f'-bit={bit}'
                             f'-mulaw={mulaw}'
-                            f'-use_univ={use_univ}'
                             '.wav'
                         ))

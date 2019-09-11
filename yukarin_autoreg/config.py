@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Union
-from warnings import warn
 
 from yukarin_autoreg.utility.json_utility import JSONEncoder
 
@@ -23,22 +22,15 @@ class DatasetConfig(NamedTuple):
 
 
 class ModelConfig(NamedTuple):
-    upconv_scales: List[int]
-    upconv_residual: bool
-    upconv_channel_ksize: int
-    residual_encoder_channel: int
-    residual_encoder_num_block: int
     dual_softmax: bool
     bit_size: int
     hidden_size: int
     local_size: int
-    use_univ_wavernn: bool
     conditioning_size: int
     embedding_size: int
     linear_hidden_size: int
     local_scale: int
     local_layer_num: int
-    bug_fixed_gru_dimension: bool = True
 
 
 class LossConfig(NamedTuple):
@@ -108,18 +100,11 @@ def create_from_json(s: Union[str, Path]):
             bit_size=d['model']['bit_size'],
             dual_softmax=d['model']['dual_softmax'],
             local_size=d['model']['local_size'],
-            upconv_scales=d['model']['upconv_scales'],
-            upconv_residual=d['model']['upconv_residual'],
-            upconv_channel_ksize=d['model']['upconv_channel_ksize'],
-            residual_encoder_channel=d['model']['residual_encoder_channel'],
-            residual_encoder_num_block=d['model']['residual_encoder_num_block'],
-            use_univ_wavernn=d['model']['use_univ_wavernn'],
             conditioning_size=d['model']['conditioning_size'],
             embedding_size=d['model']['embedding_size'],
             linear_hidden_size=d['model']['linear_hidden_size'],
             local_scale=d['model']['local_scale'],
             local_layer_num=d['model']['local_layer_num'],
-            bug_fixed_gru_dimension=d['model']['bug_fixed_gru_dimension'],
         ),
         loss=LossConfig(
             disable_fine=d['loss']['disable_fine'],
@@ -163,27 +148,6 @@ def backward_compatible(d: Dict):
     if 'local_size' not in d['model']:
         d['model']['local_size'] = 0
 
-    if 'using_modified_model' not in d['model']:
-        d['model']['using_modified_model'] = False
-
-    if 'upconv_scales' not in d['model']:
-        d['model']['upconv_scales'] = []
-
-    if 'upconv_residual' not in d['model']:
-        d['model']['upconv_residual'] = False
-
-    if 'optimizer_gradient_clipping' not in d['train']:
-        d['train']['optimizer_gradient_clipping'] = None
-
-    if 'residual_encoder_channel' not in d['model']:
-        d['model']['residual_encoder_channel'] = None
-
-    if 'residual_encoder_num_block' not in d['model']:
-        d['model']['residual_encoder_num_block'] = None
-
-    if 'upconv_channel_ksize' not in d['model']:
-        d['model']['upconv_channel_ksize'] = 3
-
     if 'linear_shift' not in d['train']:
         d['train']['linear_shift'] = None
 
@@ -202,14 +166,6 @@ def backward_compatible(d: Dict):
     if 'disable_fine' not in d['loss']:
         d['loss']['disable_fine'] = False
 
-    if 'bug_fixed_gru_dimension' not in d['model']:
-        if d['model']['residual_encoder_channel'] is not None and d['model']['residual_encoder_num_block'] is not None:
-            warn('this config is not bug fixed "gru dimension" https://github.com/Hiroshiba/yukarin_autoreg/pull/2')
-            d['model']['bug_fixed_gru_dimension'] = False
-        else:
-            # no bug
-            d['model']['bug_fixed_gru_dimension'] = True
-
     if 'mulaw' not in d['dataset']:
         d['dataset']['mulaw'] = False
 
@@ -218,9 +174,6 @@ def backward_compatible(d: Dict):
 
     if 'eliminate_silence' not in d['loss']:
         d['loss']['eliminate_silence'] = True
-
-    if 'use_univ_wavernn' not in d['model']:
-        d['model']['use_univ_wavernn'] = False
 
     if 'conditioning_size' not in d['model']:
         d['model']['conditioning_size'] = None

@@ -9,7 +9,6 @@ from chainer import cuda
 from yukarin_autoreg.config import Config
 from yukarin_autoreg.data import encode_16bit, decode_16bit, decode_single, encode_mulaw, decode_mulaw, encode_single
 from yukarin_autoreg.model import create_predictor
-from yukarin_autoreg.network import WaveRNN
 from yukarin_autoreg.utility.chainer_link_utility import mean_params
 from yukarin_autoreg.wave import Wave
 
@@ -65,21 +64,14 @@ class Generator(object):
 
         if self.dual_softmax:
             encoded_coarse, encoded_fine = encode_16bit(w)
-            coarse = decode_single(encoded_coarse)
-            fine = decode_single(encoded_fine)[:-1]
         else:
             encoded_coarse = encode_single(w, bit=self.single_bit)
-            coarse = w
-            fine = None
 
         local = self.model.xp.expand_dims(self.model.xp.asarray(l), axis=0)
 
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-            if isinstance(self.model, WaveRNN):
-                c, f, hc, hf = self.model(coarse, fine, local)
-            else:
-                c, hc = self.model(encoded_coarse, local)
-                f, hf = None, None
+            c, hc = self.model(encoded_coarse, local)
+            f, hf = None, None
 
         c = self.model.sampling(c[:, :, -1], maximum=True)
         if self.dual_softmax:
@@ -121,25 +113,12 @@ class Generator(object):
         hc, hf = hidden_coarse, hidden_fine
         for i in range(length):
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                if isinstance(self.model, WaveRNN):
-                    c = decode_single(c.astype(np.float32), bit=self.single_bit)
-                    if self.dual_softmax:
-                        f = decode_single(f.astype(np.float32), bit=self.single_bit)
-
-                    c, f, hc, hf = self.model.forward_one(
-                        prev_c=c,
-                        prev_f=f,
-                        prev_l=local_array[:, i],
-                        hidden_coarse=hc,
-                        hidden_fine=hf,
-                    )
-                else:
-                    c, hc = self.model.forward_one(
-                        prev_x=c,
-                        prev_l=local_array[:, i],
-                        hidden=hc,
-                    )
-                    f, hf = None, None
+                c, hc = self.model.forward_one(
+                    prev_x=c,
+                    prev_l=local_array[:, i],
+                    hidden=hc,
+                )
+                f, hf = None, None
 
             if sampling_policy == SamplingPolicy.random:
                 is_random = True

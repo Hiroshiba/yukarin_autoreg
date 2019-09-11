@@ -6,36 +6,21 @@ import numpy as np
 from chainer import Chain
 
 from yukarin_autoreg.config import LossConfig, ModelConfig
-from yukarin_autoreg.network import WaveRNN
-from yukarin_autoreg.network.univ_wave_rnn import UnivWaveRNN
+from yukarin_autoreg.network.wave_rnn import WaveRNN
 
 
 def create_predictor(config: ModelConfig):
-    if not config.use_univ_wavernn:
-        predictor = WaveRNN(
-            upconv_scales=config.upconv_scales,
-            upconv_residual=config.upconv_residual,
-            upconv_channel_ksize=config.upconv_channel_ksize,
-            residual_encoder_channel=config.residual_encoder_channel,
-            residual_encoder_num_block=config.residual_encoder_num_block,
-            dual_softmax=config.dual_softmax,
-            bit_size=config.bit_size,
-            hidden_size=config.hidden_size,
-            local_size=config.local_size,
-            bug_fixed_gru_dimension=config.bug_fixed_gru_dimension,
-        )
-    else:
-        predictor = UnivWaveRNN(
-            dual_softmax=config.dual_softmax,
-            bit_size=config.bit_size,
-            conditioning_size=config.conditioning_size,
-            embedding_size=config.embedding_size,
-            hidden_size=config.hidden_size,
-            linear_hidden_size=config.linear_hidden_size,
-            local_size=config.local_size,
-            local_scale=config.local_scale,
-            local_layer_num=config.local_layer_num,
-        )
+    predictor = WaveRNN(
+        dual_softmax=config.dual_softmax,
+        bit_size=config.bit_size,
+        conditioning_size=config.conditioning_size,
+        embedding_size=config.embedding_size,
+        hidden_size=config.hidden_size,
+        linear_hidden_size=config.linear_hidden_size,
+        local_size=config.local_size,
+        local_scale=config.local_scale,
+        local_layer_num=config.local_layer_num,
+    )
     return predictor
 
 
@@ -43,7 +28,7 @@ class Model(Chain):
     def __init__(
             self,
             loss_config: LossConfig,
-            predictor: Union[WaveRNN, UnivWaveRNN],
+            predictor: WaveRNN,
             local_padding_size: int,
     ) -> None:
         super().__init__()
@@ -61,21 +46,13 @@ class Model(Chain):
             local: Optional[np.ndarray],
             silence: np.ndarray,
     ):
-        if isinstance(self.predictor, WaveRNN):
-            assert self.local_padding_size == 0
-            out_c_array, out_f_array, _, _ = self.predictor(
-                c_array=input_coarse,
-                f_array=input_fine,
-                l_array=local,
-            )
-        else:
-            assert input_fine is None
-            out_c_array, _ = self.predictor(
-                x_array=encoded_coarse,
-                l_array=local,
-                local_padding_size=self.local_padding_size,
-            )
-            out_f_array = None
+        assert input_fine is None
+        out_c_array, _ = self.predictor(
+            x_array=encoded_coarse,
+            l_array=local,
+            local_padding_size=self.local_padding_size,
+        )
+        out_f_array = None
 
         losses = dict()
 
