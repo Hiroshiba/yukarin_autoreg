@@ -116,19 +116,19 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
             wave = encode_mulaw(wave, mu=2 ** self.bit)
         if self.to_double:
             assert self.bit == 16
-            coarse, fine = encode_16bit(wave)
-            input_coarse = decode_single(coarse).astype(np.float32)
-            input_fine = decode_single(fine).astype(np.float32)[:-1]
+            encoded_coarse, encoded_fine = encode_16bit(wave)
+            coarse = decode_single(encoded_coarse).astype(np.float32)
+            fine = decode_single(encoded_fine).astype(np.float32)[:-1]
         else:
-            coarse = encode_single(wave, bit=self.bit)
+            encoded_coarse = encode_single(wave, bit=self.bit)
+            encoded_fine = None
+            coarse = wave.ravel().astype(np.float32)
             fine = None
-            input_coarse = wave.ravel().astype(np.float32)
-            input_fine = None
         return dict(
-            input_coarse=input_coarse,
-            input_fine=input_fine,
-            encoded_coarse=coarse,
-            encoded_fine=fine,
+            coarse=coarse,
+            fine=fine,
+            encoded_coarse=encoded_coarse,
+            encoded_fine=encoded_fine,
             local=local,
             silence=silence[1:],
         )

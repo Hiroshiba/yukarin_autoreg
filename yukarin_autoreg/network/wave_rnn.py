@@ -50,6 +50,8 @@ class WaveRNN(chainer.Chain):
             self,
             dual_softmax: bool,
             bit_size: int,
+            gaussian: bool,
+            input_categorical: bool,
             conditioning_size: int,
             embedding_size: int,
             hidden_size: int,
@@ -63,6 +65,8 @@ class WaveRNN(chainer.Chain):
 
         self.dual_softmax = dual_softmax
         self.bit_size = bit_size
+        self.gaussian = gaussian
+        self.input_categorical = input_categorical
         self.local_size = local_size
         self.local_scale = local_scale
         with self.init_scope():
@@ -72,15 +76,15 @@ class WaveRNN(chainer.Chain):
                 out_size=conditioning_size,
                 dropout=0,
             ) if local_size > 0 else None
-            self.x_embedder = EmbedID(self.bins, embedding_size)
+            self.x_embedder = EmbedID(self.bins, embedding_size) if input_categorical else None
             self.gru = NStepGRU(
                 n_layers=1,
-                in_size=embedding_size + (2 * conditioning_size if local_size > 0 else 0),
+                in_size=(embedding_size if input_categorical else 1) + (2 * conditioning_size if local_size > 0 else 0),
                 out_size=hidden_size,
                 dropout=0,
             )
             self.O1 = L.Linear(hidden_size, linear_hidden_size)
-            self.O2 = L.Linear(linear_hidden_size, self.bins)
+            self.O2 = L.Linear(linear_hidden_size, self.bins if not gaussian else 2)
 
     @property
     def bins(self):
@@ -101,7 +105,7 @@ class WaveRNN(chainer.Chain):
         :param local_padding_size:
         :param hidden: float (batch_size, hidden_size)
         :return:
-            out_x_array: float (batch_size, bins, N)
+            out_x_array: float (batch_size, ?, N)
             hidden: float (batch_size, hidden_size)
         """
         assert l_array.shape[2] == self.local_size, f'{l_array.shape[2]} {self.local_size}'
@@ -144,7 +148,7 @@ class WaveRNN(chainer.Chain):
         :param l_array: (batch_size, N, ?)
         :param hidden: float (batch_size, hidden_size)
         :return:
-            out_x_array: float (batch_size, bins, N)
+            out_x_array: float (batch_size, ?, N)
             hidden: float (batch_size, hidden_size)
         """
         assert x_array.shape == l_array.shape[:2], f'{x_array.shape}, {l_array.shape[:2]}'
@@ -152,8 +156,11 @@ class WaveRNN(chainer.Chain):
         batch_size = x_array.shape[0]
         length = x_array.shape[1]  # N
 
-        x_array = x_array.reshape([batch_size * length, 1])  # (batchsize * N, 1)
-        x_array = self.x_embedder(x_array).reshape([batch_size, length, -1])  # (batch_size, N, ?)
+        if self.input_categorical:
+            x_array = x_array.reshape([batch_size * length, 1])  # (batchsize * N, 1)
+            x_array = self.x_embedder(x_array).reshape([batch_size, length, -1])  # (batch_size, N, ?)
+        else:
+            x_array = x_array.reshape([batch_size, length, 1])  # (batchsize, N, 1)
 
         xl_array = F.concat((x_array, l_array), axis=2)  # (batch_size, N, ?)
 
@@ -178,12 +185,16 @@ class WaveRNN(chainer.Chain):
         :param prev_l: (batch_size, ?)
         :param hidden: float (batch_size, single_hidden_size)
         :return:
-            out_x: float (batch_size, bins)
+            out_x: float (batch_size, ?)
             hidden: float (batch_size, hidden_size)
         """
         batch_size = prev_x.shape[0]
 
-        prev_x = self.x_embedder(prev_x[:, np.newaxis]).reshape([batch_size, -1])  # (batch_size, ?)
+        if self.input_categorical:
+            prev_x = self.x_embedder(prev_x[:, np.newaxis]).reshape([batch_size, -1])  # (batch_size, ?)
+        else:
+            prev_x = prev_x.reshape([batch_size, 1])  # (batch_size, 1)
+
         prev_xl = F.concat((prev_x, prev_l), axis=1)  # (batch_size, ?)
 
         new_hidden = _call_1step(
@@ -196,17 +207,21 @@ class WaveRNN(chainer.Chain):
 
         return out_x, new_hidden
 
-    def sampling(self, softmax_dist: ArrayLike, maximum=True):
+    def sampling(self, dist: ArrayLike, maximum=True):
         xp = self.xp
 
         if maximum:
-            sampled = xp.argmax(F.softmax(softmax_dist, axis=1).data, axis=1)
+            if not self.gaussian:
+                sampled = xp.argmax(F.softmax(dist, axis=1).data, axis=1)
+            else:
+                sampled = dist[:, 0].data
         else:
-            prob_np = lambda x: x if isinstance(x, np.ndarray) else x.get()  # cupy don't have random.choice method
-
-            prob_list = F.softmax(softmax_dist, axis=1)
-            sampled = xp.array([
-                np.random.choice(np.arange(self.bins), p=prob_np(prob))
-                for prob in prob_list.data
-            ])
+            if not self.gaussian:
+                prob_list = F.softmax(dist, axis=1)
+                sampled = xp.array([
+                    xp.random.choice(np.arange(self.bins), p=prob)
+                    for prob in prob_list.data
+                ])
+            else:
+                sampled = F.gaussian(mean=dist[:, 0], ln_var=dist[:, 1]).data
         return sampled

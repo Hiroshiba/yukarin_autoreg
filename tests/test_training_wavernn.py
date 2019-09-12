@@ -25,12 +25,16 @@ if gpu is not None:
 def _create_model(
         local_size: int,
         local_scale: int = None,
-        dual_softmax=True,
-        bit_size=16,
+        dual_softmax=False,
+        bit_size=10,
+        gaussian=False,
+        input_categorical=True,
 ):
     network = WaveRNN(
         dual_softmax=dual_softmax,
         bit_size=bit_size,
+        gaussian=gaussian,
+        input_categorical=input_categorical,
         conditioning_size=128,
         embedding_size=256,
         hidden_size=hidden_size,
@@ -48,10 +52,17 @@ def _create_model(
     return model
 
 
+def _get_trained_nll(gaussian):
+    if not gaussian:
+        return 4
+    else:
+        return 1
+
+
 class TestTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
-        model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit)
+    def _wrapper(self, input_categorical, gaussian, to_double=False, bit=10, mulaw=True):
+        model = _create_model(local_size=0, input_categorical=input_categorical, gaussian=gaussian)
         dataset = SignWaveDataset(
             sampling_rate=sampling_rate,
             sampling_length=sampling_length,
@@ -61,16 +72,17 @@ class TestTrainingWaveRNN(unittest.TestCase):
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
+        trained_nll = _get_trained_nll(gaussian)
 
         def _first_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data > 4)
+            self.assertTrue(o['main/nll_coarse'].data > trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data > 4)
+                self.assertTrue(o['main/nll_fine'].data > trained_nll)
 
         def _last_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data < 1)
+            self.assertTrue(o['main/nll_coarse'].data < trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data < 5)
+                self.assertTrue(o['main/nll_fine'].data < trained_nll)
 
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
@@ -80,22 +92,27 @@ class TestTrainingWaveRNN(unittest.TestCase):
             f'-to_double={to_double}'
             f'-bit={bit}'
             f'-mulaw={mulaw}'
+            f'-input_categorical={input_categorical}'
+            f'-gaussian={gaussian}'
             f'-iteration={iteration}.npz',
             model.predictor,
         )
 
     def test_train(self):
-        for to_double, bit, mulaw in (
-                (False, 9, True),
+        for input_categorical, gaussian in (
+                (True, False),
+                (True, True),
+                (False, False),
+                (False, True),
         ):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+            with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
+                self._wrapper(input_categorical=input_categorical, gaussian=gaussian)
 
 
 class TestCannotTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
-        model = _create_model(local_size=0, dual_softmax=to_double, bit_size=bit)
+    def _wrapper(self, input_categorical, gaussian, to_double=False, bit=10, mulaw=True):
+        model = _create_model(local_size=0, input_categorical=input_categorical, gaussian=gaussian)
         dataset = RandomDataset(
             sampling_length=sampling_length,
             to_double=to_double,
@@ -105,31 +122,35 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
+        trained_nll = _get_trained_nll(gaussian)
 
         def _first_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data > 4)
+            self.assertTrue(o['main/nll_coarse'].data > trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data > 4)
+                self.assertTrue(o['main/nll_fine'].data > trained_nll)
 
         def _last_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data > 4)
+            self.assertTrue(o['main/nll_coarse'].data > trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data > 4)
+                self.assertTrue(o['main/nll_fine'].data > trained_nll)
 
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit, mulaw in (
-                (False, 9, True),
+        for input_categorical, gaussian in (
+                (True, False),
+                (True, True),
+                (False, False),
+                (False, True),
         ):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+            with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
+                self._wrapper(input_categorical=input_categorical, gaussian=gaussian)
 
 
 class TestLocalTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
-        model = _create_model(local_size=2, dual_softmax=to_double, bit_size=bit)
+    def _wrapper(self, input_categorical, gaussian, to_double=False, bit=10, mulaw=True):
+        model = _create_model(local_size=2, input_categorical=input_categorical, gaussian=gaussian)
         dataset = LocalRandomDataset(
             sampling_length=sampling_length,
             to_double=to_double,
@@ -139,37 +160,41 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
+        trained_nll = _get_trained_nll(gaussian)
 
         def _first_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data > 4)
+            self.assertTrue(o['main/nll_coarse'].data > trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data > 4)
+                self.assertTrue(o['main/nll_fine'].data > trained_nll)
 
         def _last_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data < 5)
+            self.assertTrue(o['main/nll_coarse'].data < trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data < 5)
+                self.assertTrue(o['main/nll_fine'].data < trained_nll)
 
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit, mulaw in (
-                (False, 9, True),
+        for input_categorical, gaussian in (
+                (True, False),
+                (True, True),
+                (False, False),
+                (False, True),
         ):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+            with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
+                self._wrapper(input_categorical=input_categorical, gaussian=gaussian)
 
 
 class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
     @retry(tries=10)
-    def _wrapper(self, to_double, bit, mulaw):
+    def _wrapper(self, input_categorical, gaussian, to_double=False, bit=10, mulaw=True):
         scale = 4
 
         model = _create_model(
             local_size=2 * scale,
             local_scale=scale,
-            dual_softmax=to_double,
-            bit_size=bit,
+            input_categorical=input_categorical,
+            gaussian=gaussian,
         )
         dataset = DownLocalRandomDataset(
             sampling_length=sampling_length,
@@ -181,22 +206,26 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
         )
 
         updater, reporter = setup_support(batch_size, gpu, model, dataset)
+        trained_nll = _get_trained_nll(gaussian)
 
         def _first_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data > 4)
+            self.assertTrue(o['main/nll_coarse'].data > trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data > 4)
+                self.assertTrue(o['main/nll_fine'].data > trained_nll)
 
         def _last_hook(o):
-            self.assertTrue(o['main/nll_coarse'].data < 5)
+            self.assertTrue(o['main/nll_coarse'].data < trained_nll)
             if to_double:
-                self.assertTrue(o['main/nll_fine'].data < 5)
+                self.assertTrue(o['main/nll_fine'].data < trained_nll)
 
         train_support(iteration, reporter, updater, _first_hook, _last_hook)
 
     def test_train(self):
-        for to_double, bit, mulaw in (
-                (False, 9, True),
+        for input_categorical, gaussian in (
+                (True, False),
+                (True, True),
+                (False, False),
+                (False, True),
         ):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
-                self._wrapper(to_double=to_double, bit=bit, mulaw=mulaw)
+            with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
+                self._wrapper(input_categorical=input_categorical, gaussian=gaussian)

@@ -11,7 +11,7 @@ class DatasetConfig(NamedTuple):
     input_wave_glob: str
     input_silence_glob: str
     input_local_glob: str
-    bit_size: int
+    bit_size: Optional[int]
     gaussian_noise_sigma: float
     only_coarse: bool
     mulaw: bool
@@ -23,7 +23,9 @@ class DatasetConfig(NamedTuple):
 
 class ModelConfig(NamedTuple):
     dual_softmax: bool
-    bit_size: int
+    bit_size: Optional[int]
+    gaussian: bool
+    input_categorical: bool
     hidden_size: int
     local_size: int
     conditioning_size: int
@@ -98,6 +100,8 @@ def create_from_json(s: Union[str, Path]):
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
+            gaussian=d['model']['gaussian'],
+            input_categorical=d['model']['input_categorical'],
             dual_softmax=d['model']['dual_softmax'],
             local_size=d['model']['local_size'],
             conditioning_size=d['model']['conditioning_size'],
@@ -195,6 +199,12 @@ def backward_compatible(d: Dict):
 
     if 'num_train' not in d['dataset']:
         d['dataset']['num_train'] = None
+
+    if 'gaussian' not in d['model']:
+        d['model']['gaussian'] = False
+
+    if 'input_categorical' not in d['model']:
+        d['model']['input_categorical'] = True
 
 
 def assert_config(config: Config):

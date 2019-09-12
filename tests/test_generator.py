@@ -2,17 +2,25 @@ import unittest
 from collections import namedtuple
 from pathlib import Path
 
+from yukarin_autoreg.config import ModelConfig
 from yukarin_autoreg.generator import Generator, SamplingPolicy
 
-gpu = 3
+gpu = 0
 
 
 class TestGenerator(unittest.TestCase):
     def test_generator(self):
-        for to_double, bit, mulaw in (
-                (False, 9, True),
+        to_double = False
+        bit = 10
+        mulaw = True
+        iteration = 3000
+        for input_categorical, gaussian in (
+                (True, False),
+                (True, True),
+                (False, False),
+                (False, True),
         ):
-            with self.subTest(to_double=to_double, bit=bit, mulaw=mulaw):
+            with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
                 config = namedtuple('Config', ['dataset', 'model'])(
                     dataset=namedtuple('DatasetConfig', [
                         'sampling_rate',
@@ -21,19 +29,11 @@ class TestGenerator(unittest.TestCase):
                         sampling_rate=8000,
                         mulaw=mulaw,
                     ),
-                    model=namedtuple('ModelConfig', [
-                        'dual_softmax',
-                        'bit_size',
-                        'hidden_size',
-                        'local_size',
-                        'conditioning_size',
-                        'embedding_size',
-                        'linear_hidden_size',
-                        'local_scale',
-                        'local_layer_num',
-                    ])(
+                    model=ModelConfig(
                         dual_softmax=to_double,
                         bit_size=bit,
+                        gaussian=gaussian,
+                        input_categorical=input_categorical,
                         hidden_size=896,
                         local_size=0,
                         conditioning_size=128,
@@ -51,7 +51,9 @@ class TestGenerator(unittest.TestCase):
                         f'-to_double={to_double}'
                         f'-bit={bit}'
                         f'-mulaw={mulaw}'
-                        f'-iteration=1000.npz'
+                        f'-input_categorical={input_categorical}'
+                        f'-gaussian={gaussian}'
+                        f'-iteration={iteration}.npz'
                     ),
                     gpu=gpu,
                 )
@@ -68,5 +70,8 @@ class TestGenerator(unittest.TestCase):
                             f'-to_double={to_double}'
                             f'-bit={bit}'
                             f'-mulaw={mulaw}'
+                            f'-input_categorical={input_categorical}'
+                            f'-gaussian={gaussian}'
+                            f'-iteration={iteration}'
                             '.wav'
                         ))

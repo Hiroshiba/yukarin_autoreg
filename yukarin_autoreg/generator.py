@@ -7,7 +7,7 @@ import numpy as np
 from chainer import cuda
 
 from yukarin_autoreg.config import Config
-from yukarin_autoreg.data import encode_16bit, decode_16bit, decode_single, encode_mulaw, decode_mulaw, encode_single
+from yukarin_autoreg.data import decode_single, encode_mulaw, decode_mulaw, encode_single
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.utility.chainer_link_utility import mean_params
 from yukarin_autoreg.wave import Wave
@@ -45,6 +45,8 @@ class Generator(object):
             self.model = model = create_predictor(config.model)
             mean_params(models, model)
 
+        assert not self.dual_softmax
+
         if self.gpu is not None:
             model.to_gpu(self.gpu)
             cuda.get_device_from_id(self.gpu).use()
@@ -57,28 +59,30 @@ class Generator(object):
     def single_bit(self):
         return self.model.bit_size // (2 if self.dual_softmax else 1)
 
+    @property
+    def input_categorical(self):
+        return self.model.input_categorical
+
+    @property
+    def output_categorical(self):
+        return not self.model.gaussian
+
     def forward(self, w: np.ndarray, l: np.ndarray):
         if self.mulaw:
             w = encode_mulaw(w, mu=2 ** self.model.bit_size)
             w = self.model.xp.expand_dims(self.model.xp.asarray(w), axis=0)
 
-        if self.dual_softmax:
-            encoded_coarse, encoded_fine = encode_16bit(w)
-        else:
-            encoded_coarse = encode_single(w, bit=self.single_bit)
+        x_array = w
+        if self.input_categorical:
+            x_array = encode_single(x_array, bit=self.single_bit)
 
         local = self.model.xp.expand_dims(self.model.xp.asarray(l), axis=0)
 
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-            c, hc = self.model(encoded_coarse, local)
-            f, hf = None, None
+            c, hc = self.model(x_array, local)
 
         c = self.model.sampling(c[:, :, -1], maximum=True)
-        if self.dual_softmax:
-            f = self.model.sampling(f[:, :, -1], maximum=True)
-        else:
-            f = None
-        return c, f, hc, hf
+        return c, hc
 
     def generate(
             self,
@@ -102,23 +106,25 @@ class Generator(object):
         w_list = []
 
         if coarse is None:
-            if self.dual_softmax:
-                c, f = encode_16bit(self.model.xp.zeros([1], dtype=np.float32))
-            else:
-                c = encode_single(self.model.xp.zeros([1], dtype=np.float32), bit=self.single_bit)
-                f = None
+            c = self.model.xp.zeros([1], dtype=np.float32)
+            if self.output_categorical:
+                c = encode_single(c, bit=self.single_bit)
         else:
-            c, f = coarse, fine
+            c = coarse
 
-        hc, hf = hidden_coarse, hidden_fine
+        hc = hidden_coarse
         for i in range(length):
+            if self.output_categorical and not self.input_categorical:
+                c = decode_single(c, bit=self.single_bit)
+            if not self.output_categorical and self.input_categorical:
+                c = encode_single(c, bit=self.single_bit)
+
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
                 c, hc = self.model.forward_one(
                     prev_x=c,
                     prev_l=local_array[:, i],
                     hidden=hc,
                 )
-                f, hf = None, None
 
             if sampling_policy == SamplingPolicy.random:
                 is_random = True
@@ -135,15 +141,13 @@ class Generator(object):
                 raise ValueError(sampling_policy)
 
             c = self.model.sampling(c, maximum=not is_random)
-            if self.dual_softmax:
-                f = self.model.sampling(f, maximum=not is_random)
-                w = decode_16bit(
-                    coarse=chainer.cuda.to_cpu(c[0]),
-                    fine=chainer.cuda.to_cpu(f[0]),
-                )
-            else:
-                w = decode_single(chainer.cuda.to_cpu(c[0]), bit=self.single_bit)
+            if not self.output_categorical:
+                c[c < -1] = -1
+                c[c > 1] = 1
 
+            w = chainer.cuda.to_cpu(c[0])
+            if self.output_categorical:
+                w = decode_single(w, bit=self.single_bit)
             w_list.append(w)
 
         wave = np.array(w_list)
