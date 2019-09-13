@@ -10,3 +10,4 @@ pyworld
 tqdm
 retry
 tensorboardX
+parameterized

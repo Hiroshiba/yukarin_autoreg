@@ -85,7 +85,7 @@ class SignWaveDataset(BaseWaveDataset):
 
 
 def _create_optimizer(model):
-    optimizer = chainer.optimizers.Adam(alpha=0.005)
+    optimizer = chainer.optimizers.Adam(alpha=0.001)
     optimizer.setup(model)
     return optimizer
 

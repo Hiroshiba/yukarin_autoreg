@@ -1,224 +1,186 @@
 import unittest
-from itertools import product
 
 import numpy as np
+from parameterized import parameterized_class
 
-from yukarin_autoreg.network import WaveRNN
+from yukarin_autoreg.network.wave_rnn import WaveRNN
 
 batch_size = 2
 length = 3
 hidden_size = 8
-local_size = 5
+loal_size = 5
+bit_size = 9
 
 
-def _make_wave_rnn(dual_softmax: bool, upconv: bool, residual_encode: bool):
-    wave_rnn = WaveRNN(
-        upconv_scales=[1] if upconv else [],
-        upconv_residual=upconv,
-        upconv_channel_ksize=1,
-        residual_encoder_channel=local_size * 2 if residual_encode else None,
-        residual_encoder_num_block=1 if residual_encode else None,
-        dual_softmax=dual_softmax,
-        bit_size=16 if dual_softmax else 10,
-        hidden_size=hidden_size,
-        local_size=local_size,
-        bug_fixed_gru_dimension=True,
-    )
-
-    # set 'b'
-    for p in wave_rnn.params():
-        if 'b' not in p.name:
-            continue
-        p.data = np.random.rand(*p.shape).astype(p.dtype)
-
-    return wave_rnn
+def _make_hidden():
+    hidden = np.random.rand(batch_size, hidden_size).astype(np.float32)
+    return hidden
 
 
-def _make_hidden(dual_softmax: bool, seed=None):
-    rand = np.random.RandomState(seed=seed)
-    if dual_softmax:
-        hidden_coarse = rand.rand(batch_size, hidden_size // 2).astype(np.float32)
-        hidden_fine = rand.rand(batch_size, hidden_size // 2).astype(np.float32)
-    else:
-        hidden_coarse = rand.rand(batch_size, hidden_size).astype(np.float32)
-        hidden_fine = None
-    return hidden_coarse, hidden_fine
-
-
+@parameterized_class(('gaussian', 'input_categorical'), [
+    (True, True),
+    (False, True),
+    (True, False),
+    (False, False),
+])
 class TestWaveRNN(unittest.TestCase):
     def setUp(self):
-        self.c_array = np.random.rand(batch_size, length).astype(np.float32)
-        self.f_array = np.random.rand(batch_size, length).astype(np.float32)
-        self.l_array = np.random.rand(batch_size, length, local_size).astype(np.float32)
-        self.curr_c_array = np.random.rand(batch_size, length).astype(np.float32)
-        self.c_one = np.random.rand(batch_size, 1).astype(np.float32)
-        self.f_one = np.random.rand(batch_size, 1).astype(np.float32)
-        self.l_one = np.random.rand(batch_size, 1, local_size).astype(np.float32)
-        self.curr_c_one = np.random.rand(batch_size, 1).astype(np.float32)
+        gaussian = self.gaussian
+        input_categorical = self.input_categorical
 
-    def test_make_wave_rnn(self):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
-                _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
+        if input_categorical:
+            self.x_array = np.random.randint(0, bit_size ** 2, size=[batch_size, length]).astype(np.int32)
+            self.x_one = np.random.randint(0, bit_size ** 2, size=[batch_size, 1]).astype(np.int32)
+        else:
+            self.x_array = np.random.rand(batch_size, length).astype(np.float32)
+            self.x_one = np.random.rand(batch_size, 1).astype(np.float32)
+
+        self.l_array = np.random.rand(batch_size, length, loal_size).astype(np.float32)
+        self.l_one = np.random.rand(batch_size, 1, loal_size).astype(np.float32)
+
+        wave_rnn = WaveRNN(
+            dual_softmax=False,
+            bit_size=bit_size,
+            gaussian=gaussian,
+            input_categorical=input_categorical,
+            conditioning_size=7,
+            embedding_size=32,
+            hidden_size=hidden_size,
+            linear_hidden_size=11,
+            local_size=loal_size,
+            local_scale=1,
+            local_layer_num=2,
+        )
+
+        # set 'b'
+        for p in wave_rnn.params():
+            if 'b' not in p.name:
+                continue
+            p.data = np.random.rand(*p.shape).astype(p.dtype)
+
+        self.wave_rnn = wave_rnn
 
     def test_call(self):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-                wave_rnn(
-                    c_array=self.c_array,
-                    f_array=self.f_array[:, :-1] if dual_softmax else None,
-                    l_array=self.l_array,
-                )
+        wave_rnn = self.wave_rnn
+        wave_rnn(
+            x_array=self.x_array,
+            l_array=self.l_array,
+        )
+
+    def test_call_with_local_padding(self):
+        local_padding_size = 5
+
+        wave_rnn = self.wave_rnn
+        with self.assertRaises(Exception):
+            wave_rnn(
+                x_array=self.x_array,
+                l_array=self.l_array,
+                local_padding_size=local_padding_size,
+            )
+
+        l_array = np.pad(
+            self.l_array,
+            pad_width=((0, 0), (local_padding_size, local_padding_size), (0, 0)),
+            mode='constant',
+        )
+        wave_rnn(
+            x_array=self.x_array,
+            l_array=l_array,
+            local_padding_size=local_padding_size,
+        )
 
     def test_forward_one(self):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-                hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
-                l_one = wave_rnn.forward_encode(self.l_one).data
-                wave_rnn.forward_one(
-                    self.c_one[:, 0],
-                    self.f_one[:, 0] if dual_softmax else None,
-                    l_one[:, 0],
-                    hidden_coarse=hidden_coarse,
-                    hidden_fine=hidden_fine if dual_softmax else None,
-                )
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
+        l_one = wave_rnn.forward_encode(self.l_one).data
+        wave_rnn.forward_one(
+            self.x_one[:, 0],
+            l_one[:, 0],
+            hidden=hidden,
+        )
 
     def test_batchsize1_forward(self):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-                hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
-                l_array = wave_rnn.forward_encode(self.l_array).data
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
+        l_array = wave_rnn.forward_encode(self.l_array).data
 
-                oca, ofa, hca, hfa = wave_rnn.forward_rnn(
-                    c_array=self.c_array,
-                    f_array=self.f_array if dual_softmax else None,
-                    l_array=l_array,
-                    curr_c_array=self.curr_c_array if dual_softmax else None,
-                    hidden_coarse=hidden_coarse,
-                    hidden_fine=hidden_fine if dual_softmax else None,
-                )
+        oa, ha = wave_rnn.forward_rnn(
+            x_array=self.x_array,
+            l_array=l_array,
+            hidden=hidden,
+        )
 
-                ocb, ofb, hcb, hfb = wave_rnn.forward_rnn(
-                    c_array=self.c_array[:1],
-                    f_array=self.f_array[:1] if dual_softmax else None,
-                    l_array=l_array[:1],
-                    curr_c_array=self.curr_c_array[:1] if dual_softmax else None,
-                    hidden_coarse=hidden_coarse[:1],
-                    hidden_fine=hidden_fine[:1] if dual_softmax else None,
-                )
+        ob, hb = wave_rnn.forward_rnn(
+            x_array=self.x_array[:1],
+            l_array=l_array[:1],
+            hidden=hidden[:1],
+        )
 
-                np.testing.assert_allclose(oca.data[:1], ocb.data, atol=1e-6)
-                if dual_softmax:
-                    np.testing.assert_allclose(ofa.data[:1], ofb.data, atol=1e-6)
-
-                np.testing.assert_allclose(hca.data[:1], hcb.data, atol=1e-6)
-                if dual_softmax:
-                    np.testing.assert_allclose(hfa.data[:1], hfb.data, atol=1e-6)
+        np.testing.assert_allclose(oa.data[:1], ob.data, atol=1e-6)
+        np.testing.assert_allclose(ha.data[:1], hb.data, atol=1e-6)
 
     def test_batchsize1_forward_one(self):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-                hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
-                l_one = wave_rnn.forward_encode(self.l_one).data
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
+        l_one = wave_rnn.forward_encode(self.l_one).data
 
-                oca, ofa, hca, hfa = wave_rnn.forward_one(
-                    self.c_one[:, 0],
-                    self.f_one[:, 0] if dual_softmax else None,
-                    l_one[:, 0],
-                    self.curr_c_one[:, 0] if dual_softmax else None,
-                    hidden_coarse=hidden_coarse,
-                    hidden_fine=hidden_fine if dual_softmax else None,
-                )
+        oa, ha = wave_rnn.forward_one(
+            self.x_one[:, 0],
+            l_one[:, 0],
+            hidden=hidden,
+        )
 
-                ocb, ofb, hcb, hfb = wave_rnn.forward_one(
-                    self.c_one[:1, 0],
-                    self.f_one[:1, 0] if dual_softmax else None,
-                    l_one[:1, 0],
-                    self.curr_c_one[:1, 0] if dual_softmax else None,
-                    hidden_coarse=hidden_coarse[:1],
-                    hidden_fine=hidden_fine[:1] if dual_softmax else None,
-                )
+        ob, hb = wave_rnn.forward_one(
+            self.x_one[:1, 0],
+            l_one[:1, 0],
+            hidden=hidden[:1],
+        )
 
-                np.testing.assert_allclose(oca.data[:1], ocb.data, atol=1e-6)
-                if dual_softmax:
-                    np.testing.assert_allclose(ofa.data[:1], ofb.data, atol=1e-6)
-
-                np.testing.assert_allclose(hca.data[:1], hcb.data, atol=1e-6)
-                if dual_softmax:
-                    np.testing.assert_allclose(hfa.data[:1], hfb.data, atol=1e-6)
+        np.testing.assert_allclose(oa.data[:1], ob.data, atol=1e-6)
+        np.testing.assert_allclose(ha.data[:1], hb.data, atol=1e-6)
 
     def test_same_call_and_forward(self):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-                hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
 
-                oca, ofa, hca, hfa = wave_rnn(
-                    c_array=self.c_array,
-                    f_array=self.f_array[:, :-1] if dual_softmax else None,
-                    l_array=self.l_array,
-                    hidden_coarse=hidden_coarse,
-                    hidden_fine=hidden_fine if dual_softmax else None,
-                )
+        oa, ha = wave_rnn(
+            x_array=self.x_array,
+            l_array=self.l_array,
+            hidden=hidden,
+        )
 
-                l_array = wave_rnn.forward_encode(self.l_array).data
-                ocb, ofb, hcb, hfb = wave_rnn.forward_rnn(
-                    c_array=self.c_array[:, :-1],
-                    f_array=self.f_array[:, :-1] if dual_softmax else None,
-                    l_array=l_array[:, 1:],
-                    curr_c_array=self.c_array[:, 1:] if dual_softmax else None,
-                    hidden_coarse=hidden_coarse,
-                    hidden_fine=hidden_fine if dual_softmax else None,
-                )
+        l_array = wave_rnn.forward_encode(self.l_array).data
+        ob, hb = wave_rnn.forward_rnn(
+            x_array=self.x_array[:, :-1],
+            l_array=l_array[:, 1:],
+            hidden=hidden,
+        )
 
-                np.testing.assert_equal(oca.data, ocb.data)
-                if dual_softmax:
-                    np.testing.assert_equal(ofa.data, ofb.data)
-
-                np.testing.assert_equal(hca.data, hcb.data)
-                if dual_softmax:
-                    np.testing.assert_equal(hfa.data, hfb.data)
+        np.testing.assert_equal(oa.data, ob.data)
+        np.testing.assert_equal(ha.data, hb.data)
 
     def test_same_forward_rnn_and_forward_one(self):
-        for dual_softmax, upconv, residual_encode in product([True, False], [True, False], [True, False]):
-            with self.subTest(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode):
-                wave_rnn = _make_wave_rnn(dual_softmax=dual_softmax, upconv=upconv, residual_encode=residual_encode)
-                hidden_coarse, hidden_fine = _make_hidden(dual_softmax=dual_softmax)
-                l_array = wave_rnn.forward_encode(self.l_array).data
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
+        l_array = wave_rnn.forward_encode(self.l_array).data
 
-                oca, ofa, hca, hfa = wave_rnn.forward_rnn(
-                    c_array=self.c_array,
-                    f_array=self.f_array if dual_softmax else None,
-                    l_array=l_array,
-                    curr_c_array=self.curr_c_array if dual_softmax else None,
-                    hidden_coarse=hidden_coarse,
-                    hidden_fine=hidden_fine if dual_softmax else None,
-                )
+        oa, ha = wave_rnn.forward_rnn(
+            x_array=self.x_array,
+            l_array=l_array,
+            hidden=hidden,
+        )
 
-                hcb, hfb = hidden_coarse, hidden_fine
-                for i, (c, f, l, curr_c) in enumerate(zip(
-                        np.split(self.c_array, length, axis=1),
-                        np.split(self.f_array, length, axis=1),
-                        np.split(l_array, length, axis=1),
-                        np.split(self.curr_c_array, length, axis=1),
-                )):
-                    ocb, ofb, hcb, hfb = wave_rnn.forward_one(
-                        c[:, 0],
-                        f[:, 0] if dual_softmax else None,
-                        l[:, 0],
-                        curr_c[:, 0] if dual_softmax else None,
-                        hcb,
-                        hfb if dual_softmax else None,
-                    )
+        hb = hidden
+        for i, (x, l) in enumerate(zip(
+                np.split(self.x_array, length, axis=1),
+                np.split(l_array, length, axis=1),
+        )):
+            ob, hb = wave_rnn.forward_one(
+                x[:, 0],
+                l[:, 0],
+                hb,
+            )
 
-                    np.testing.assert_equal(oca[:, :, i].data, ocb.data)
-                    if dual_softmax:
-                        np.testing.assert_equal(ofa[:, :, i].data, ofb.data)
+            np.testing.assert_equal(oa[:, :, i].data, ob.data)
 
-                np.testing.assert_equal(hca.data, hcb.data)
-                if dual_softmax:
-                    np.testing.assert_equal(hfa.data, hfb.data)
+        np.testing.assert_equal(ha.data, hb.data)

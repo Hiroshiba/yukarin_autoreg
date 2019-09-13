@@ -24,7 +24,7 @@ arguments = parser.parse_args()
 
 config = create_from_json(arguments.config_json_path)
 assert_config(config)
-arguments.output.mkdir(exist_ok=True)
+arguments.output.mkdir()
 config.save_as_json((arguments.output / 'config.json').absolute())
 
 # model
