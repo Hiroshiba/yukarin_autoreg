@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+from parameterized import parameterized_class
 
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 
@@ -11,45 +12,56 @@ loal_size = 5
 bit_size = 9
 
 
-def _make_wave_rnn():
-    wave_rnn = WaveRNN(
-        dual_softmax=False,
-        bit_size=bit_size,
-        conditioning_size=7,
-        embedding_size=32,
-        hidden_size=hidden_size,
-        linear_hidden_size=11,
-        local_size=loal_size,
-        local_scale=1,
-        local_layer_num=2,
-    )
-
-    # set 'b'
-    for p in wave_rnn.params():
-        if 'b' not in p.name:
-            continue
-        p.data = np.random.rand(*p.shape).astype(p.dtype)
-
-    return wave_rnn
-
-
 def _make_hidden():
     hidden = np.random.rand(batch_size, hidden_size).astype(np.float32)
     return hidden
 
 
+@parameterized_class(('gaussian', 'input_categorical'), [
+    (True, True),
+    (False, True),
+    (True, False),
+    (False, False),
+])
 class TestWaveRNN(unittest.TestCase):
     def setUp(self):
-        self.x_array = np.random.randint(0, bit_size ** 2, size=[batch_size, length]).astype(np.int32)
+        gaussian = self.gaussian
+        input_categorical = self.input_categorical
+
+        if input_categorical:
+            self.x_array = np.random.randint(0, bit_size ** 2, size=[batch_size, length]).astype(np.int32)
+            self.x_one = np.random.randint(0, bit_size ** 2, size=[batch_size, 1]).astype(np.int32)
+        else:
+            self.x_array = np.random.rand(batch_size, length).astype(np.float32)
+            self.x_one = np.random.rand(batch_size, 1).astype(np.float32)
+
         self.l_array = np.random.rand(batch_size, length, loal_size).astype(np.float32)
-        self.x_one = np.random.randint(0, bit_size ** 2, size=[batch_size, 1]).astype(np.int32)
         self.l_one = np.random.rand(batch_size, 1, loal_size).astype(np.float32)
 
-    def test_make_wave_rnn(self):
-        _make_wave_rnn()
+        wave_rnn = WaveRNN(
+            dual_softmax=False,
+            bit_size=bit_size,
+            gaussian=gaussian,
+            input_categorical=input_categorical,
+            conditioning_size=7,
+            embedding_size=32,
+            hidden_size=hidden_size,
+            linear_hidden_size=11,
+            local_size=loal_size,
+            local_scale=1,
+            local_layer_num=2,
+        )
+
+        # set 'b'
+        for p in wave_rnn.params():
+            if 'b' not in p.name:
+                continue
+            p.data = np.random.rand(*p.shape).astype(p.dtype)
+
+        self.wave_rnn = wave_rnn
 
     def test_call(self):
-        wave_rnn = _make_wave_rnn()
+        wave_rnn = self.wave_rnn
         wave_rnn(
             x_array=self.x_array,
             l_array=self.l_array,
@@ -58,7 +70,7 @@ class TestWaveRNN(unittest.TestCase):
     def test_call_with_local_padding(self):
         local_padding_size = 5
 
-        wave_rnn = _make_wave_rnn()
+        wave_rnn = self.wave_rnn
         with self.assertRaises(Exception):
             wave_rnn(
                 x_array=self.x_array,
@@ -78,7 +90,7 @@ class TestWaveRNN(unittest.TestCase):
         )
 
     def test_forward_one(self):
-        wave_rnn = _make_wave_rnn()
+        wave_rnn = self.wave_rnn
         hidden = _make_hidden()
         l_one = wave_rnn.forward_encode(self.l_one).data
         wave_rnn.forward_one(
@@ -88,7 +100,7 @@ class TestWaveRNN(unittest.TestCase):
         )
 
     def test_batchsize1_forward(self):
-        wave_rnn = _make_wave_rnn()
+        wave_rnn = self.wave_rnn
         hidden = _make_hidden()
         l_array = wave_rnn.forward_encode(self.l_array).data
 
@@ -108,7 +120,7 @@ class TestWaveRNN(unittest.TestCase):
         np.testing.assert_allclose(ha.data[:1], hb.data, atol=1e-6)
 
     def test_batchsize1_forward_one(self):
-        wave_rnn = _make_wave_rnn()
+        wave_rnn = self.wave_rnn
         hidden = _make_hidden()
         l_one = wave_rnn.forward_encode(self.l_one).data
 
@@ -128,7 +140,7 @@ class TestWaveRNN(unittest.TestCase):
         np.testing.assert_allclose(ha.data[:1], hb.data, atol=1e-6)
 
     def test_same_call_and_forward(self):
-        wave_rnn = _make_wave_rnn()
+        wave_rnn = self.wave_rnn
         hidden = _make_hidden()
 
         oa, ha = wave_rnn(
@@ -148,7 +160,7 @@ class TestWaveRNN(unittest.TestCase):
         np.testing.assert_equal(ha.data, hb.data)
 
     def test_same_forward_rnn_and_forward_one(self):
-        wave_rnn = _make_wave_rnn()
+        wave_rnn = self.wave_rnn
         hidden = _make_hidden()
         l_array = wave_rnn.forward_encode(self.l_array).data
 

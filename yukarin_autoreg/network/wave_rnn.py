@@ -218,8 +218,8 @@ class WaveRNN(chainer.Chain):
         else:
             if not self.gaussian:
                 prob_list = F.softmax(dist, axis=1)
-                sampled = xp.array([
-                    xp.random.choice(np.arange(self.bins), p=prob)
+                sampled = xp.concatenate([
+                    xp.random.choice(self.bins, size=1, p=prob)
                     for prob in prob_list.data
                 ])
             else:

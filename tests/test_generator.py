@@ -16,7 +16,6 @@ class TestGenerator(unittest.TestCase):
         iteration = 3000
         for input_categorical, gaussian in (
                 (True, False),
-                (True, True),
                 (False, False),
                 (False, True),
         ):

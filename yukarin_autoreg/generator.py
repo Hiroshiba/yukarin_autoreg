@@ -116,8 +116,6 @@ class Generator(object):
         for i in range(length):
             if self.output_categorical and not self.input_categorical:
                 c = decode_single(c, bit=self.single_bit)
-            if not self.output_categorical and self.input_categorical:
-                c = encode_single(c, bit=self.single_bit)
 
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
                 c, hc = self.model.forward_one(

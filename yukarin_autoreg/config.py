@@ -152,6 +152,9 @@ def backward_compatible(d: Dict):
     if 'local_size' not in d['model']:
         d['model']['local_size'] = 0
 
+    if 'optimizer_gradient_clipping' not in d['train']:
+        d['train']['optimizer_gradient_clipping'] = None
+
     if 'linear_shift' not in d['train']:
         d['train']['linear_shift'] = None
 
