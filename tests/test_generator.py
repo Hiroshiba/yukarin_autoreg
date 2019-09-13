@@ -40,6 +40,7 @@ class TestGenerator(unittest.TestCase):
                         linear_hidden_size=512,
                         local_scale=1,
                         local_layer_num=2,
+                        weight_initializer=None,
                     ),
                 )
 

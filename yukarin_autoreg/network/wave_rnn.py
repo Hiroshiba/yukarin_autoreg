@@ -3,9 +3,11 @@ from typing import Union, Optional
 import chainer
 import chainer.links as L
 import numpy as np
-from chainer import functions as F
-from chainer.links import NStepGRU, NStepBiGRU, EmbedID
+from chainer import functions as F, Initializer
+from chainer.links import EmbedID
 from chainer.links.connection.n_step_rnn import NStepRNNBase
+
+from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepBiGRU, ModifiedNStepGRU
 
 ArrayLike = Union[np.ndarray, chainer.Variable]
 
@@ -59,6 +61,7 @@ class WaveRNN(chainer.Chain):
             local_size: int,
             local_scale: int,
             local_layer_num: int,
+            weight_initializer: Optional[Initializer] = None,
     ) -> None:
         super().__init__()
         assert not dual_softmax
@@ -70,21 +73,23 @@ class WaveRNN(chainer.Chain):
         self.local_size = local_size
         self.local_scale = local_scale
         with self.init_scope():
-            self.local_gru = NStepBiGRU(
+            self.local_gru = ModifiedNStepBiGRU(
                 n_layers=local_layer_num,
                 in_size=local_size,
                 out_size=conditioning_size,
                 dropout=0,
+                initialW=weight_initializer,
             ) if local_size > 0 else None
-            self.x_embedder = EmbedID(self.bins, embedding_size) if input_categorical else None
-            self.gru = NStepGRU(
+            self.x_embedder = EmbedID(self.bins, embedding_size, initialW=weight_initializer) if input_categorical else None
+            self.gru = ModifiedNStepGRU(
                 n_layers=1,
                 in_size=(embedding_size if input_categorical else 1) + (2 * conditioning_size if local_size > 0 else 0),
                 out_size=hidden_size,
                 dropout=0,
+                initialW=weight_initializer,
             )
-            self.O1 = L.Linear(hidden_size, linear_hidden_size)
-            self.O2 = L.Linear(linear_hidden_size, self.bins if not gaussian else 2)
+            self.O1 = L.Linear(hidden_size, linear_hidden_size, initialW=weight_initializer)
+            self.O2 = L.Linear(linear_hidden_size, self.bins if not gaussian else 2, initialW=weight_initializer)
 
     @property
     def bins(self):

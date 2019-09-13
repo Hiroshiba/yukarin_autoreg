@@ -147,3 +147,15 @@ class ModifiedNStepGRU(ModifiedNStepGRUBase):
     @property
     def n_cells(self):
         return 1
+
+
+class ModifiedNStepBiGRU(ModifiedNStepGRUBase):
+    use_bi_direction = True
+
+    def rnn(self, *args):
+        from chainer.functions.connection import n_step_gru as rnn
+        return rnn.n_step_bigru(*args)
+
+    @property
+    def n_cells(self):
+        return 1
