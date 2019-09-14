@@ -103,7 +103,6 @@ class TestTrainingWaveRNN(unittest.TestCase):
     def test_train(self):
         for input_categorical, gaussian in (
                 (True, False),
-                (False, False),
                 (False, True),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
@@ -140,7 +139,6 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
     def test_train(self):
         for input_categorical, gaussian in (
                 (True, False),
-                (False, False),
                 (False, True),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
@@ -177,7 +175,6 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
     def test_train(self):
         for input_categorical, gaussian in (
                 (True, False),
-                (False, False),
                 (False, True),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
@@ -222,7 +219,6 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
     def test_train(self):
         for input_categorical, gaussian in (
                 (True, False),
-                (False, False),
                 (False, True),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
