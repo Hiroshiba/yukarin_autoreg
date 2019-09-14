@@ -1,5 +1,6 @@
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 
 
 class Phoneme(object):
@@ -18,14 +19,15 @@ class Phoneme(object):
             start: float,
             end: float,
     ) -> None:
-        assert phoneme in self.phoneme_list, f'{phoneme} is not defined.'
-
         self.phoneme = phoneme
         self.start = np.round(start, decimals=2)
         self.end = np.round(end, decimals=2)
 
     def __repr__(self):
         return f'Phoneme(phoneme=\'{self.phoneme}\', start={self.start}, end={self.end})'
+
+    def verify(self):
+        assert self.phoneme in self.phoneme_list, f'{self.phoneme} is not defined.'
 
     @property
     def phoneme_id(self):
@@ -56,8 +58,16 @@ class Phoneme(object):
 
     @staticmethod
     def load_julius_list(path: Path):
-        return [
+        phonemes = [
             Phoneme.parse(s)
             for s in path.read_text().split('\n')
             if len(s) > 0
         ]
+        if 'sil' in phonemes[0].phoneme:
+            phonemes[0].phoneme = Phoneme.space_phoneme
+        if 'sil' in phonemes[-1].phoneme:
+            phonemes[-1].phoneme = Phoneme.space_phoneme
+
+        for phoneme in phonemes:
+            phoneme.verify()
+        return phonemes
