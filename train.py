@@ -1,14 +1,13 @@
 import argparse
-import multiprocessing
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict
 
 import chainer
-from chainer import cuda, optimizer_hooks, optimizers, training
+from chainer import optimizer_hooks, optimizers, training
 from chainer.iterators import MultiprocessIterator
-from chainer.training import extensions
-from chainer.training.updaters import MultiprocessParallelUpdater, StandardUpdater
+from chainer.training import extensions, ParallelUpdater
+from chainer.training.updaters import StandardUpdater
 from tb_chainer import SummaryWriter
 
 from utility.chainer_extension_utility import TensorBoardReport
@@ -33,21 +32,10 @@ if config.train.trained_model is not None:
     chainer.serializers.load_npz(config.train.trained_model, predictor)
 model = Model(loss_config=config.loss, predictor=predictor, local_padding_size=config.dataset.local_padding_size)
 
-if len(config.train.gpu) == 1:
-    model.to_gpu(config.train.gpu[0])
-    cuda.get_device_from_id(config.train.gpu[0]).use()
-
 # dataset
 dataset = create_dataset(config.dataset)
 batchsize_devided = config.train.batchsize // len(config.train.gpu)
-train_iters = [
-    MultiprocessIterator(
-        dataset['train'],
-        batchsize_devided,
-        n_processes=multiprocessing.cpu_count() // len(config.train.gpu),
-    )
-    for _ in config.train.gpu
-]
+train_iter = MultiprocessIterator(dataset['train'], config.train.batchsize)
 test_iter = MultiprocessIterator(dataset['test'], batchsize_devided, repeat=False, shuffle=False)
 train_eval_iter = MultiprocessIterator(dataset['train_eval'], batchsize_devided, repeat=False, shuffle=False)
 
@@ -77,17 +65,17 @@ optimizer = create_optimizer(model)
 # updater
 if len(config.train.gpu) <= 1:
     updater = StandardUpdater(
-        iterator=train_iters[0],
+        iterator=train_iter,
         optimizer=optimizer,
         converter=concat_optional,
         device=config.train.gpu[0],
     )
 else:
-    updater = MultiprocessParallelUpdater(
-        iterators=train_iters,
+    updater = ParallelUpdater(
+        iterator=train_iter,
         optimizer=optimizer,
         converter=concat_optional,
-        devices=config.train.gpu,
+        devices={'main' if i == 0 else f'gpu{gpu}': gpu for i, gpu in enumerate(config.train.gpu)},
     )
 
 # trainer
