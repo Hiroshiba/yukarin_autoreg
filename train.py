@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import chainer
-from chainer import optimizer_hooks, optimizers, training
+from chainer import cuda, optimizer_hooks, optimizers, training
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions, ParallelUpdater
 from chainer.training.updaters import StandardUpdater
@@ -31,6 +31,9 @@ predictor = create_predictor(config.model)
 if config.train.trained_model is not None:
     chainer.serializers.load_npz(config.train.trained_model, predictor)
 model = Model(loss_config=config.loss, predictor=predictor, local_padding_size=config.dataset.local_padding_size)
+
+model.to_gpu(config.train.gpu[0])
+cuda.get_device_from_id(config.train.gpu[0]).use()
 
 # dataset
 dataset = create_dataset(config.dataset)
