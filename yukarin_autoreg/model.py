@@ -7,6 +7,7 @@ from chainer import Chain
 
 from yukarin_autoreg.config import LossConfig, ModelConfig
 from yukarin_autoreg.network.wave_rnn import WaveRNN
+from yukarin_autoreg.utility.chainer_initializer_utility import get_weight_initializer
 
 
 def create_predictor(config: ModelConfig):
@@ -22,6 +23,7 @@ def create_predictor(config: ModelConfig):
         local_size=config.local_size,
         local_scale=config.local_scale,
         local_layer_num=config.local_layer_num,
+        weight_initializer=get_weight_initializer(config.weight_initializer),
     )
     return predictor
 

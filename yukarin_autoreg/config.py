@@ -33,6 +33,7 @@ class ModelConfig(NamedTuple):
     linear_hidden_size: int
     local_scale: int
     local_layer_num: int
+    weight_initializer: Optional[str]
 
 
 class LossConfig(NamedTuple):
@@ -109,6 +110,7 @@ def create_from_json(s: Union[str, Path]):
             linear_hidden_size=d['model']['linear_hidden_size'],
             local_scale=d['model']['local_scale'],
             local_layer_num=d['model']['local_layer_num'],
+            weight_initializer=d['model']['weight_initializer'],
         ),
         loss=LossConfig(
             disable_fine=d['loss']['disable_fine'],
@@ -208,6 +210,9 @@ def backward_compatible(d: Dict):
 
     if 'input_categorical' not in d['model']:
         d['model']['input_categorical'] = True
+
+    if 'weight_initializer' not in d['model']:
+        d['model']['weight_initializer'] = None
 
 
 def assert_config(config: Config):

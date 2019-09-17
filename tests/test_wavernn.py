@@ -4,6 +4,7 @@ import numpy as np
 from parameterized import parameterized_class
 
 from yukarin_autoreg.network.wave_rnn import WaveRNN
+from yukarin_autoreg.utility.chainer_initializer_utility import get_weight_initializer
 
 batch_size = 2
 length = 3
@@ -17,16 +18,25 @@ def _make_hidden():
     return hidden
 
 
-@parameterized_class(('gaussian', 'input_categorical'), [
-    (True, True),
-    (False, True),
-    (True, False),
-    (False, False),
+@parameterized_class(('gaussian', 'input_categorical', 'weight_initializer'), [
+    (False, True, None),
+    (True, False, None),
+    (False, False, None),
+    (False, True, 'GlorotNormal'),
+    (False, True, 'HeNormal'),
+    (False, True, 'LeCunNormal'),
+    (False, True, 'Normal'),
+    (False, True, 'GlorotUniform'),
+    (False, True, 'HeUniform'),
+    (False, True, 'LeCunUniform'),
+    (False, True, 'Uniform'),
+    (False, True, 'PossibleOrthogonal'),
 ])
 class TestWaveRNN(unittest.TestCase):
     def setUp(self):
         gaussian = self.gaussian
         input_categorical = self.input_categorical
+        weight_initializer = self.weight_initializer
 
         if input_categorical:
             self.x_array = np.random.randint(0, bit_size ** 2, size=[batch_size, length]).astype(np.int32)
@@ -50,6 +60,7 @@ class TestWaveRNN(unittest.TestCase):
             local_size=loal_size,
             local_scale=1,
             local_layer_num=2,
+            weight_initializer=get_weight_initializer(weight_initializer),
         )
 
         # set 'b'
