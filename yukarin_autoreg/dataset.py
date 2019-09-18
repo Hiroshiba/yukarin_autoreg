@@ -1,10 +1,10 @@
 import glob
-from functools import partial
+import json
 from pathlib import Path
-from typing import List, NamedTuple, Union
+from typing import List, NamedTuple, Union, Dict
 
-import chainer
 import numpy as np
+from chainer.dataset import DatasetMixin
 
 from yukarin_autoreg.config import DatasetConfig
 from yukarin_autoreg.data import encode_16bit, encode_single, decode_single, encode_mulaw
@@ -31,7 +31,7 @@ class LazyInput(NamedTuple):
         )
 
 
-class BaseWaveDataset(chainer.dataset.DatasetMixin):
+class BaseWaveDataset(DatasetMixin):
     def __init__(
             self,
             sampling_length: int,
@@ -196,48 +196,83 @@ class WavesDataset(BaseWaveDataset):
         )
 
 
+class SpeakerWavesDataset(DatasetMixin):
+    def __init__(self, wave_dataset: DatasetMixin, speaker_nums: List[int]):
+        assert len(wave_dataset) == len(speaker_nums)
+        self.wave_dataset = wave_dataset
+        self.speaker_nums = speaker_nums
+
+    def __len__(self):
+        return len(self.wave_dataset)
+
+    def get_example(self, i):
+        d = self.wave_dataset.get_example(i)
+        d['speaker_num'] = np.array(self.speaker_nums[i], dtype=np.int32)
+        return d
+
+
 def create(config: DatasetConfig):
     if not config.only_coarse:
         assert config.bit_size == 16
 
     wave_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_wave_glob))}
-
-    silence_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))}
-    assert set(wave_paths.keys()) == set(silence_paths.keys())
-
-    local_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_local_glob))}
-    assert set(wave_paths.keys()) == set(local_paths.keys())
-
     fn_list = sorted(wave_paths.keys())
 
-    inputs = [
-        LazyInput(
-            path_wave=wave_paths[fn],
-            path_silence=silence_paths[fn],
-            path_local=local_paths[fn],
-        )
-        for fn in fn_list
-    ]
-    np.random.RandomState(config.seed).shuffle(inputs)
+    silence_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))}
+    assert set(fn_list) == set(silence_paths.keys())
+
+    local_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_local_glob))}
+    assert set(fn_list) == set(local_paths.keys())
+
+    if config.speaker_dict_path is not None:
+        fn_each_speaker: Dict[str, List[str]] = json.load(open(config.speaker_dict_path))
+        speaker_nums = {
+            fn: speaker_num
+            for speaker_num, (_, fns) in enumerate(fn_each_speaker.items())
+            for fn in fns
+        }
+        assert set(fn_list).issuperset(set(speaker_nums.keys()))
+    else:
+        speaker_nums = None
+
+    np.random.RandomState(config.seed).shuffle(fn_list)
 
     num_test = config.num_test
-    num_train = config.num_train if config.num_train is not None else len(inputs) - num_test
+    num_train = config.num_train if config.num_train is not None else len(fn_list) - num_test
 
-    trains = inputs[num_test:][:num_train]
-    tests = inputs[:num_test]
+    trains = fn_list[num_test:][:num_train]
+    tests = fn_list[:num_test]
     evals = trains[:num_test]
 
-    _Dataset = partial(
-        WavesDataset,
-        sampling_length=config.sampling_length,
-        to_double=not config.only_coarse,
-        bit=config.bit_size,
-        mulaw=config.mulaw,
-        local_padding_size=config.local_padding_size,
-        gaussian_noise_sigma=config.gaussian_noise_sigma,
-    )
+    def Dataset(fns):
+        inputs = [
+            LazyInput(
+                path_wave=wave_paths[fn],
+                path_silence=silence_paths[fn],
+                path_local=local_paths[fn],
+            )
+            for fn in fns
+        ]
+        dataset = WavesDataset(
+            inputs=inputs,
+            sampling_length=config.sampling_length,
+            to_double=not config.only_coarse,
+            bit=config.bit_size,
+            mulaw=config.mulaw,
+            local_padding_size=config.local_padding_size,
+            gaussian_noise_sigma=config.gaussian_noise_sigma,
+        )
+
+        if speaker_nums is not None:
+            dataset = SpeakerWavesDataset(
+                wave_dataset=dataset,
+                speaker_nums=[speaker_nums[fn] for fn in fns],
+            )
+
+        return dataset
+
     return {
-        'train': _Dataset(trains),
-        'test': _Dataset(tests),
-        'train_eval': _Dataset(evals),
+        'train': Dataset(trains),
+        'test': Dataset(tests),
+        'train_eval': Dataset(evals),
     }

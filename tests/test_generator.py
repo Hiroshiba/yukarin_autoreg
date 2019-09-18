@@ -14,10 +14,10 @@ class TestGenerator(unittest.TestCase):
         bit = 10
         mulaw = True
         iteration = 3000
-        for input_categorical, gaussian in (
-                (True, False),
-                (False, False),
-                (False, True),
+        for input_categorical, gaussian, speaker_size in (
+                (True, False, 0),
+                (False, True, 0),
+                (True, False, 4),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
                 config = namedtuple('Config', ['dataset', 'model'])(
@@ -40,8 +40,8 @@ class TestGenerator(unittest.TestCase):
                         linear_hidden_size=512,
                         local_scale=1,
                         local_layer_num=2,
-                        speaker_size=0,
-                        speaker_embedding_size=0,
+                        speaker_size=speaker_size,
+                        speaker_embedding_size=speaker_size // 4,
                         weight_initializer=None,
                     ),
                 )
@@ -49,12 +49,13 @@ class TestGenerator(unittest.TestCase):
                 generator = Generator(
                     config,
                     model_path=Path(
-                        f'tests/data/TestTrainingWaveRNN'
+                        f'tests/data/test_training_wavernn'
                         f'-to_double={to_double}'
                         f'-bit={bit}'
                         f'-mulaw={mulaw}'
                         f'-input_categorical={input_categorical}'
                         f'-gaussian={gaussian}'
+                        f'-speaker_size={speaker_size}'
                         f'-iteration={iteration}.npz'
                     ),
                     gpu=gpu,
@@ -65,6 +66,7 @@ class TestGenerator(unittest.TestCase):
                         wave = generator.generate(
                             time_length=0.3,
                             sampling_policy=sampling_policy,
+                            speaker_num=0 if speaker_size > 0 else None,
                         )
                         wave.save(Path(
                             f'test_generator_audio'
@@ -74,6 +76,7 @@ class TestGenerator(unittest.TestCase):
                             f'-mulaw={mulaw}'
                             f'-input_categorical={input_categorical}'
                             f'-gaussian={gaussian}'
+                            f'-speaker_size={speaker_size}'
                             f'-iteration={iteration}'
                             '.wav'
                         ))

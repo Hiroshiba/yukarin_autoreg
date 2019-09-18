@@ -1,12 +1,15 @@
 import unittest
+from itertools import chain
 
 import chainer
 from chainer import serializers
+from chainer.datasets import ConcatenatedDataset
 from retry import retry
 
 from tests.utility import DownLocalRandomDataset, LocalRandomDataset, RandomDataset, setup_support, \
     train_support, SignWaveDataset
 from yukarin_autoreg.config import LossConfig
+from yukarin_autoreg.dataset import SpeakerWavesDataset
 from yukarin_autoreg.model import Model
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 
@@ -16,7 +19,7 @@ sampling_length = 880
 gpu = 0
 batch_size = 16
 hidden_size = 896
-iteration = 300
+iteration = 3000
 
 if gpu is not None:
     chainer.cuda.get_device_from_id(gpu).use()
@@ -29,6 +32,7 @@ def _create_model(
         bit_size=10,
         gaussian=False,
         input_categorical=True,
+        speaker_size=0,
 ):
     network = WaveRNN(
         dual_softmax=dual_softmax,
@@ -42,8 +46,8 @@ def _create_model(
         local_size=local_size,
         local_scale=local_scale if local_scale is not None else 1,
         local_layer_num=2,
-        speaker_size=0,
-        speaker_embedding_size=0,
+        speaker_size=speaker_size,
+        speaker_embedding_size=speaker_size // 4,
     )
 
     loss_config = LossConfig(
@@ -90,12 +94,13 @@ class TestTrainingWaveRNN(unittest.TestCase):
 
         # save model
         serializers.save_npz(
-            f'TestTrainingWaveRNN'
+            f'test_training_wavernn'
             f'-to_double={to_double}'
             f'-bit={bit}'
             f'-mulaw={mulaw}'
             f'-input_categorical={input_categorical}'
             f'-gaussian={gaussian}'
+            f'-speaker_size=0'
             f'-iteration={iteration}.npz',
             model.predictor,
         )
@@ -139,7 +144,6 @@ class TestCannotTrainingWaveRNN(unittest.TestCase):
     def test_train(self):
         for input_categorical, gaussian in (
                 (True, False),
-                (False, True),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
                 self._wrapper(input_categorical=input_categorical, gaussian=gaussian)
@@ -175,7 +179,6 @@ class TestLocalTrainingWaveRNN(unittest.TestCase):
     def test_train(self):
         for input_categorical, gaussian in (
                 (True, False),
-                (False, True),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
                 self._wrapper(input_categorical=input_categorical, gaussian=gaussian)
@@ -219,7 +222,69 @@ class TestDownSampledLocalTrainingWaveRNN(unittest.TestCase):
     def test_train(self):
         for input_categorical, gaussian in (
                 (True, False),
-                (False, True),
+        ):
+            with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
+                self._wrapper(input_categorical=input_categorical, gaussian=gaussian)
+
+
+class TestSpeakerTrainingWaveRNN(unittest.TestCase):
+    @retry(tries=10)
+    def _wrapper(self, input_categorical, gaussian, to_double=False, bit=10, mulaw=True):
+        speaker_size = 4
+        model = _create_model(
+            local_size=0,
+            input_categorical=input_categorical,
+            gaussian=gaussian,
+            speaker_size=speaker_size,
+        )
+
+        datasets = [
+            SignWaveDataset(
+                sampling_rate=sampling_rate,
+                sampling_length=sampling_length,
+                to_double=to_double,
+                bit=bit,
+                mulaw=mulaw,
+                frequency=(i + 1) * 110,
+            )
+            for i in range(speaker_size)
+        ]
+        dataset = SpeakerWavesDataset(
+            wave_dataset=ConcatenatedDataset(*datasets),
+            speaker_nums=list(chain.from_iterable([i] * len(d) for i, d in enumerate(datasets))),
+        )
+
+        updater, reporter = setup_support(batch_size, gpu, model, dataset)
+        trained_nll = _get_trained_nll(gaussian)
+
+        def _first_hook(o):
+            self.assertTrue(o['main/nll_coarse'].data > trained_nll)
+            if to_double:
+                self.assertTrue(o['main/nll_fine'].data > trained_nll)
+
+        def _last_hook(o):
+            self.assertTrue(o['main/nll_coarse'].data < trained_nll)
+            if to_double:
+                self.assertTrue(o['main/nll_fine'].data < trained_nll)
+
+        train_support(iteration, reporter, updater, _first_hook, _last_hook)
+
+        # save model
+        serializers.save_npz(
+            f'test_training_wavernn'
+            f'-to_double={to_double}'
+            f'-bit={bit}'
+            f'-mulaw={mulaw}'
+            f'-input_categorical={input_categorical}'
+            f'-gaussian={gaussian}'
+            f'-speaker_size={speaker_size}'
+            f'-iteration={iteration}.npz',
+            model.predictor,
+        )
+
+    def test_train(self):
+        for input_categorical, gaussian in (
+                (True, False),
         ):
             with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
                 self._wrapper(input_categorical=input_categorical, gaussian=gaussian)

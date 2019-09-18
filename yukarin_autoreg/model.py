@@ -51,6 +51,7 @@ class Model(Chain):
             encoded_fine: np.ndarray,
             local: Optional[np.ndarray],
             silence: np.ndarray,
+            speaker_num: Optional[np.ndarray],
     ):
         assert fine is None
 
@@ -62,6 +63,7 @@ class Model(Chain):
         out_c_array, _ = self.predictor(
             x_array=x_array,
             l_array=local,
+            s_one=speaker_num,
             local_padding_size=self.local_padding_size,
         )
         out_f_array = None

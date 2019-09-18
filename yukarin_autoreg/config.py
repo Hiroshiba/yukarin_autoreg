@@ -16,6 +16,7 @@ class DatasetConfig(NamedTuple):
     only_coarse: bool
     mulaw: bool
     local_padding_size: int
+    speaker_dict_path: Optional[str]
     seed: int
     num_train: Optional[int]
     num_test: int
@@ -100,6 +101,7 @@ def create_from_json(s: Union[str, Path]):
             num_train=d['dataset']['num_train'],
             num_test=d['dataset']['num_test'],
             local_padding_size=d['dataset']['local_padding_size'],
+            speaker_dict_path=d['dataset']['speaker_dict_path'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
@@ -227,6 +229,9 @@ def backward_compatible(d: Dict):
 
     if 'speaker_embedding_size' not in d['model']:
         d['model']['speaker_embedding_size'] = 0
+
+    if 'speaker_dict_path' not in d['dataset']:
+        d['dataset']['speaker_dict_path'] = None
 
 
 def assert_config(config: Config):

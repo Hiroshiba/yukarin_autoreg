@@ -109,6 +109,8 @@ class ModifiedNStepRNNBase(link.ChainList):
         assert isinstance(xs, (list, tuple))
         indices = argsort_list_descent(xs)
 
+        assert self.ws[0][0].shape[1] == xs[0].shape[1]  # input check
+
         xs = permutate_list(xs, indices, inv=False)
         hxs = []
         for hx in hs:

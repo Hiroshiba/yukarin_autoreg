@@ -74,21 +74,32 @@ class WaveRNN(chainer.Chain):
         self.input_categorical = input_categorical
         self.local_size = local_size
         self.local_scale = local_scale
+        self.speaker_size = speaker_size
         with self.init_scope():
-            self.speaker_embedder = EmbedID(speaker_size, speaker_embedding_size) if speaker_size > 0 else None
+            self.speaker_embedder = EmbedID(
+                speaker_size,
+                speaker_embedding_size,
+                initialW=weight_initializer,
+            ) if self.with_speaker else None
 
             self.local_gru = ModifiedNStepBiGRU(
                 n_layers=local_layer_num,
-                in_size=local_size + (speaker_embedding_size if speaker_size > 0 else 0),
+                in_size=local_size + (speaker_embedding_size if self.with_speaker else 0),
                 out_size=conditioning_size,
                 dropout=0,
                 initialW=weight_initializer,
-            ) if local_size > 0 else None
+            ) if self.with_local else None
 
-            self.x_embedder = EmbedID(self.bins, embedding_size, initialW=weight_initializer) if input_categorical else None
+            self.x_embedder = EmbedID(
+                in_size=self.bins,
+                out_size=embedding_size,
+                initialW=weight_initializer,
+            ) if input_categorical else None
+
+            in_size = (embedding_size if input_categorical else 1) + (2 * conditioning_size if self.with_local else 0)
             self.gru = ModifiedNStepGRU(
                 n_layers=1,
-                in_size=(embedding_size if input_categorical else 1) + (2 * conditioning_size if local_size > 0 else 0),
+                in_size=in_size,
                 out_size=hidden_size,
                 dropout=0,
                 initialW=weight_initializer,
@@ -99,6 +110,14 @@ class WaveRNN(chainer.Chain):
     @property
     def bins(self):
         return 2 ** self.bit_size
+
+    @property
+    def with_speaker(self):
+        return self.speaker_size > 0
+
+    @property
+    def with_local(self):
+        return self.local_size > 0 or self.with_speaker
 
     def __call__(
             self,
@@ -154,12 +173,12 @@ class WaveRNN(chainer.Chain):
         :return:
             l_array: float (batch_size, N, ?)
         """
-        if self.local_size == 0:
+        if not self.with_local:
             return l_array
 
         length = l_array.shape[1]  # lN
 
-        if s_one is not None:
+        if self.with_speaker:
             s_one = self.speaker_embedder(s_one)  # shape: (batch_size, ?)
             s_one = F.expand_dims(s_one, axis=1)  # shape: (batch_size, 1, ?)
             s_array = F.repeat(s_one, length, axis=1)  # shape: (batch_size, lN, ?)
