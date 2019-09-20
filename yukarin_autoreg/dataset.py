@@ -140,13 +140,20 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
             local_data: SamplingData,
             gaussian_noise_sigma: float,
     ):
-        wave, silence, local = self.extract_input(
-            self.sampling_length,
-            wave_data,
-            silence_data,
-            local_data,
-            self.local_padding_size,
-        )
+        for _ in range(10000):
+            wave, silence, local = self.extract_input(
+                self.sampling_length,
+                wave_data,
+                silence_data,
+                local_data,
+                self.local_padding_size,
+            )
+            if not silence.all():
+                break
+            print('retry to pick not silence')
+        else:
+            # not raise but return. (because this method will be called in multiprocess.Process)
+            return Exception('cannot pick not silence data')
         wave = self.add_noise(wave=wave, gaussian_noise_sigma=gaussian_noise_sigma)
         d = self.convert_to_dict(wave, silence, local)
         return d

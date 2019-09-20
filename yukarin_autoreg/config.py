@@ -19,6 +19,7 @@ class DatasetConfig(NamedTuple):
     seed: int
     num_train: Optional[int]
     num_test: int
+    fix_contain_not_silence: bool = True
 
 
 class ModelConfig(NamedTuple):
@@ -213,6 +214,9 @@ def backward_compatible(d: Dict):
 
     if 'weight_initializer' not in d['model']:
         d['model']['weight_initializer'] = None
+
+    if 'fix_contain_not_silence' not in d['dataset']:
+        d['dataset']['fix_contain_not_silence'] = False
 
 
 def assert_config(config: Config):
