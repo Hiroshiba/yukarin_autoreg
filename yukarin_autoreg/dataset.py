@@ -150,7 +150,6 @@ class BaseWaveDataset(DatasetMixin):
             )
             if not silence.all():
                 break
-            print('retry to pick not silence')
         else:
             # not raise but return. (because this method will be called in multiprocess.Process)
             return Exception('cannot pick not silence data')
