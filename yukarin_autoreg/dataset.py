@@ -140,7 +140,7 @@ class BaseWaveDataset(chainer.dataset.DatasetMixin):
             local_data: SamplingData,
             gaussian_noise_sigma: float,
     ):
-        for _ in range(300):
+        for _ in range(10000):
             wave, silence, local = self.extract_input(
                 self.sampling_length,
                 wave_data,
