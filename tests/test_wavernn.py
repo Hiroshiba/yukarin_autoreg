@@ -23,7 +23,6 @@ def _make_hidden():
     (False, True, False, None),
     (True, False, False, None),
     (False, True, True, None),
-    (True, False, True, None),
     (False, True, False, 'GlorotNormal'),
     (False, True, False, 'HeNormal'),
     (False, True, False, 'LeCunNormal'),
@@ -56,6 +55,9 @@ class TestWaveRNN(unittest.TestCase):
         else:
             self.x_array = np.random.rand(batch_size, length).astype(np.float32)
             self.x_one = np.random.rand(batch_size, 1).astype(np.float32)
+
+        self.l_array = np.random.rand(batch_size, length, loal_size).astype(np.float32)
+        self.l_one = np.random.rand(batch_size, 1, loal_size).astype(np.float32)
 
         if with_speaker:
             self.s_one = np.random.randint(0, speaker_size, size=[batch_size, ]).astype(np.int32)

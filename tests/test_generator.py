@@ -19,7 +19,7 @@ class TestGenerator(unittest.TestCase):
                 (False, True, 0),
                 (True, False, 4),
         ):
-            with self.subTest(input_categorical=input_categorical, gaussian=gaussian):
+            with self.subTest(input_categorical=input_categorical, gaussian=gaussian, speaker_size=speaker_size):
                 config = namedtuple('Config', ['dataset', 'model'])(
                     dataset=namedtuple('DatasetConfig', [
                         'sampling_rate',

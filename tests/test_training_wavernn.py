@@ -19,7 +19,7 @@ sampling_length = 880
 gpu = 0
 batch_size = 16
 hidden_size = 896
-iteration = 3000
+iteration = 300
 
 if gpu is not None:
     chainer.cuda.get_device_from_id(gpu).use()

@@ -51,7 +51,7 @@ class Model(Chain):
             encoded_fine: np.ndarray,
             local: Optional[np.ndarray],
             silence: np.ndarray,
-            speaker_num: Optional[np.ndarray],
+            speaker_num: Optional[np.ndarray] = None,
     ):
         assert fine is None
 

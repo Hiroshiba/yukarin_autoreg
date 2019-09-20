@@ -231,7 +231,7 @@ def create(config: DatasetConfig):
             for speaker_num, (_, fns) in enumerate(fn_each_speaker.items())
             for fn in fns
         }
-        assert set(fn_list).issuperset(set(speaker_nums.keys()))
+        assert set(fn_list).issubset(set(speaker_nums.keys()))
     else:
         speaker_nums = None
 

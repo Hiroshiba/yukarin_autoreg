@@ -94,8 +94,8 @@ class SegKitPhoneme(BasePhoneme):
 
 class JvsPhoneme(BasePhoneme):
     phoneme_list = (
-        'I', 'N', 'U', 'a', 'b', 'by', 'ch', 'cl', 'd', 'dy', 'e', 'f', 'g', 'gy', 'h', 'hy', 'i', 'j', 'k', 'ky', 'm',
-        'my', 'n', 'ny', 'o', 'p', 'pau', 'py', 'r', 'ry', 's', 'sh', 't', 'ts', 'u', 'v', 'w', 'y', 'z',
+        'pau', 'I', 'N', 'U', 'a', 'b', 'by', 'ch', 'cl', 'd', 'dy', 'e', 'f', 'g', 'gy', 'h', 'hy', 'i', 'j', 'k', 'ky', 'm',
+        'my', 'n', 'ny', 'o', 'p', 'py', 'r', 'ry', 's', 'sh', 't', 'ts', 'u', 'v', 'w', 'y', 'z',
     )
     num_phoneme = len(phoneme_list)
     space_phoneme = 'pau'

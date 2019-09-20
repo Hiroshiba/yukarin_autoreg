@@ -107,8 +107,11 @@ class Generator(object):
             local_array = self.xp.expand_dims(self.xp.empty((length, 0), dtype=np.float32), axis=0)
         else:
             local_array = self.xp.expand_dims(self.xp.asarray(local_array), axis=0)
-            if speaker_num is not None:
-                speaker_num = self.xp.asarray(speaker_num).reshape(shape=(-1,))
+
+        if speaker_num is not None:
+            speaker_num = self.xp.asarray(speaker_num).reshape((-1,))
+
+        if self.model.with_local:
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
                 local_array = self.model.forward_encode(l_array=local_array, s_one=speaker_num)
 
