@@ -75,7 +75,7 @@ class Model(Chain):
 
         if self.loss_config.eliminate_silence:
             nll_coarse = nll_coarse[~silence]
-        losses['nll_coarse'] = F.mean(nll_coarse) if self.loss_config.mean_silence else F.sum(nll_coarse) / silence.size
+        losses['nll_coarse'] = F.mean(nll_coarse)
 
         loss = nll_coarse
 
@@ -89,7 +89,7 @@ class Model(Chain):
 
             if self.loss_config.eliminate_silence:
                 nll_fine = nll_fine[~silence]
-            losses['nll_fine'] = F.mean(nll_fine) if self.loss_config.mean_silence else F.sum(nll_fine) / silence.size
+            losses['nll_fine'] = F.mean(nll_fine)
 
             loss += nll_fine
 
