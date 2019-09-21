@@ -43,6 +43,7 @@ class ModelConfig(NamedTuple):
 class LossConfig(NamedTuple):
     disable_fine: bool
     eliminate_silence: bool
+    mean_silence: bool
 
 
 class TrainConfig(NamedTuple):
@@ -122,6 +123,7 @@ def create_from_json(s: Union[str, Path]):
         loss=LossConfig(
             disable_fine=d['loss']['disable_fine'],
             eliminate_silence=d['loss']['eliminate_silence'],
+            mean_silence=d['loss']['mean_silence'],
         ),
         train=TrainConfig(
             batchsize=d['train']['batchsize'],
@@ -223,6 +225,9 @@ def backward_compatible(d: Dict):
 
     if 'fix_contain_not_silence' not in d['dataset']:
         d['dataset']['fix_contain_not_silence'] = False
+
+    if 'mean_silence' not in d['loss']:
+        d['loss']['mean_silence'] = True
 
     if 'speaker_size' not in d['model']:
         d['model']['speaker_size'] = 0
