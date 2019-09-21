@@ -59,6 +59,7 @@ class SignWaveDataset(BaseWaveDataset):
             to_double: bool,
             bit: int,
             mulaw: bool,
+            frequency: float = 440
     ) -> None:
         super().__init__(
             sampling_length=sampling_length,
@@ -68,17 +69,17 @@ class SignWaveDataset(BaseWaveDataset):
             local_padding_size=0,
         )
         self.sampling_rate = sampling_rate
+        self.frequency = frequency
 
     def __len__(self):
         return 100
 
     def get_example(self, i):
-        freq = 440
         rate = self.sampling_rate
         length = self.sampling_length
         rand = np.random.rand()
 
-        wave = np.sin((np.arange(length) * freq / rate + rand) * 2 * np.pi)
+        wave = np.sin((np.arange(length) * self.frequency / rate + rand) * 2 * np.pi)
         local = np.empty(shape=(length, 0), dtype=np.float32)
         silence = np.zeros(shape=(length,), dtype=np.bool)
         return self.convert_to_dict(wave, silence, local)

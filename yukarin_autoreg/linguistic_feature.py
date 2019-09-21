@@ -1,12 +1,13 @@
-import numpy as np
 from enum import Enum
-from typing import List, Sequence, Union
+from typing import List, Sequence, Union, Type
 
-from yukarin_autoreg.phoneme import Phoneme
+import numpy as np
+
+from yukarin_autoreg.phoneme import SegKitPhoneme, BasePhoneme
 
 
 class LinguisticFeature(object):
-    class Type(str, Enum):
+    class FeatureType(str, Enum):
         PHONEME = 'PHONEME'
         PRE_PHONEME = 'PRE_PHONEME'
         POST_PHONEME = 'POST_PHONEME'
@@ -25,25 +26,31 @@ class LinguisticFeature(object):
                 self.POST_PHONEME_DURATION,
             )
 
-        def get_dim(self) -> int:
-            return {
-                self.PHONEME: Phoneme.num_phoneme,
-                self.PRE_PHONEME: Phoneme.num_phoneme,
-                self.POST_PHONEME: Phoneme.num_phoneme,
-                self.PHONEME_DURATION: 1,
-                self.PRE_PHONEME_DURATION: 1,
-                self.POST_PHONEME_DURATION: 1,
-                self.POS_IN_PHONEME: 2,
-            }[self]
-
-    def __init__(self, phonemes: List[Phoneme], rate: int, types: Sequence[Union[Type, str]]) -> None:
+    def __init__(
+            self,
+            phonemes: List[BasePhoneme],
+            phoneme_class: Type[BasePhoneme],
+            rate: int,
+            feature_types: Sequence[Union[FeatureType, str]],
+    ) -> None:
         self.phonemes = phonemes
+        self.phoneme_class = phoneme_class
         self.rate = rate
-        self.types = [self.Type(t) for t in types]
+        self.types = [self.FeatureType(t) for t in feature_types]
 
-    @classmethod
-    def sum_dims(cls, types: List[Type]):
-        return sum(t.get_dim() for t in types)
+    def get_dim(self, t: FeatureType) -> int:
+        return {
+            t.PHONEME: self.phoneme_class.num_phoneme,
+            t.PRE_PHONEME: self.phoneme_class.num_phoneme,
+            t.POST_PHONEME: self.phoneme_class.num_phoneme,
+            t.PHONEME_DURATION: 1,
+            t.PRE_PHONEME_DURATION: 1,
+            t.POST_PHONEME_DURATION: 1,
+            t.POS_IN_PHONEME: 2,
+        }[t]
+
+    def sum_dims(self, types: List[FeatureType]):
+        return sum(self.get_dim(t) for t in types)
 
     def _to_index(self, t: float):
         return int(round(t * self.rate))
@@ -59,23 +66,31 @@ class LinguisticFeature(object):
         if 0 <= i < len(self.phonemes):
             return self.phonemes[i]
         elif i < 0:
-            return Phoneme(phoneme=Phoneme.space_phoneme, start=self.phonemes[0].start, end=self.phonemes[0].start)
+            return SegKitPhoneme(
+                phoneme=SegKitPhoneme.space_phoneme,
+                start=self.phonemes[0].start,
+                end=self.phonemes[0].start,
+            )
         else:
-            return Phoneme(phoneme=Phoneme.space_phoneme, start=self.phonemes[-1].end, end=self.phonemes[-1].end)
+            return SegKitPhoneme(
+                phoneme=SegKitPhoneme.space_phoneme,
+                start=self.phonemes[-1].end,
+                end=self.phonemes[-1].end,
+            )
 
     def _make_phoneme_array(self):
-        types = list(filter(self.Type.is_phoneme, self.types))
+        types = list(filter(self.FeatureType.is_phoneme, self.types))
 
         array = np.zeros((len(self.phonemes), self.sum_dims(types)), dtype=np.float32)
         for i in range(len(self.phonemes)):
             features = [
                 {
-                    self.Type.PHONEME: self._get_phoneme(i).onehot,
-                    self.Type.PRE_PHONEME: self._get_phoneme(i - 1).onehot,
-                    self.Type.POST_PHONEME: self._get_phoneme(i + 1).onehot,
-                    self.Type.PHONEME_DURATION: self._get_phoneme(i).duration,
-                    self.Type.PRE_PHONEME_DURATION: self._get_phoneme(i - 1).duration,
-                    self.Type.POST_PHONEME_DURATION: self._get_phoneme(i + 1).duration,
+                    self.FeatureType.PHONEME: self._get_phoneme(i).onehot,
+                    self.FeatureType.PRE_PHONEME: self._get_phoneme(i - 1).onehot,
+                    self.FeatureType.POST_PHONEME: self._get_phoneme(i + 1).onehot,
+                    self.FeatureType.PHONEME_DURATION: self._get_phoneme(i).duration,
+                    self.FeatureType.PRE_PHONEME_DURATION: self._get_phoneme(i - 1).duration,
+                    self.FeatureType.POST_PHONEME_DURATION: self._get_phoneme(i + 1).duration,
                 }[t]
                 for t in types
             ]
@@ -92,7 +107,7 @@ class LinguisticFeature(object):
 
             features = [np.repeat(phoneme_array[i].reshape(1, -1), repeats=e - s + 1, axis=0)]
 
-            if self.Type.POS_IN_PHONEME in self.types:
+            if self.FeatureType.POS_IN_PHONEME in self.types:
                 pos_start = (self._to_time(np.arange(s, e + 1)) - p.start).reshape(-1, 1)
                 pos_end = p.duration - pos_start
                 features.append(pos_start)

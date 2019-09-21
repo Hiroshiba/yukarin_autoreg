@@ -23,6 +23,8 @@ def create_predictor(config: ModelConfig):
         local_size=config.local_size,
         local_scale=config.local_scale,
         local_layer_num=config.local_layer_num,
+        speaker_size=config.speaker_size,
+        speaker_embedding_size=config.speaker_embedding_size,
         weight_initializer=get_weight_initializer(config.weight_initializer),
     )
     return predictor
@@ -49,6 +51,7 @@ class Model(Chain):
             encoded_fine: np.ndarray,
             local: Optional[np.ndarray],
             silence: np.ndarray,
+            speaker_num: Optional[np.ndarray] = None,
     ):
         assert fine is None
 
@@ -60,6 +63,7 @@ class Model(Chain):
         out_c_array, _ = self.predictor(
             x_array=x_array,
             l_array=local,
+            s_one=speaker_num,
             local_padding_size=self.local_padding_size,
         )
         out_f_array = None

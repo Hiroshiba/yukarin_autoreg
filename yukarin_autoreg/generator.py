@@ -67,16 +67,22 @@ class Generator(object):
     def output_categorical(self):
         return not self.model.gaussian
 
+    @property
+    def xp(self):
+        return self.model.xp
+
     def forward(self, w: np.ndarray, l: np.ndarray):
+        assert not self.model.with_speaker
+
         if self.mulaw:
             w = encode_mulaw(w, mu=2 ** self.model.bit_size)
-            w = self.model.xp.expand_dims(self.model.xp.asarray(w), axis=0)
+            w = self.xp.expand_dims(self.xp.asarray(w), axis=0)
 
         x_array = w
         if self.input_categorical:
             x_array = encode_single(x_array, bit=self.single_bit)
 
-        local = self.model.xp.expand_dims(self.model.xp.asarray(l), axis=0)
+        local = self.xp.expand_dims(self.xp.asarray(l), axis=0)
 
         with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
             c, hc = self.model(x_array, local)
@@ -91,22 +97,28 @@ class Generator(object):
             coarse=None,
             fine=None,
             local_array: np.ndarray = None,
+            speaker_num: int = None,
             hidden_coarse=None,
             hidden_fine=None,
     ):
         length = int(self.sampling_rate * time_length)
 
         if local_array is None:
-            local_array = self.model.xp.expand_dims(self.model.xp.empty((length, 0), dtype=np.float32), axis=0)
+            local_array = self.xp.expand_dims(self.xp.empty((length, 0), dtype=np.float32), axis=0)
         else:
-            local_array = self.model.xp.expand_dims(self.model.xp.asarray(local_array), axis=0)
+            local_array = self.xp.expand_dims(self.xp.asarray(local_array), axis=0)
+
+        if speaker_num is not None:
+            speaker_num = self.xp.asarray(speaker_num).reshape((-1,))
+
+        if self.model.with_local:
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                local_array = self.model.forward_encode(local_array)
+                local_array = self.model.forward_encode(l_array=local_array, s_one=speaker_num)
 
         w_list = []
 
         if coarse is None:
-            c = self.model.xp.zeros([1], dtype=np.float32)
+            c = self.xp.zeros([1], dtype=np.float32)
             if self.output_categorical:
                 c = encode_single(c, bit=self.single_bit)
         else:

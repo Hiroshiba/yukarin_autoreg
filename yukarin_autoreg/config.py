@@ -16,6 +16,7 @@ class DatasetConfig(NamedTuple):
     only_coarse: bool
     mulaw: bool
     local_padding_size: int
+    speaker_dict_path: Optional[str]
     seed: int
     num_train: Optional[int]
     num_test: int
@@ -34,6 +35,8 @@ class ModelConfig(NamedTuple):
     linear_hidden_size: int
     local_scale: int
     local_layer_num: int
+    speaker_size: int
+    speaker_embedding_size: int
     weight_initializer: Optional[str]
 
 
@@ -99,6 +102,7 @@ def create_from_json(s: Union[str, Path]):
             num_train=d['dataset']['num_train'],
             num_test=d['dataset']['num_test'],
             local_padding_size=d['dataset']['local_padding_size'],
+            speaker_dict_path=d['dataset']['speaker_dict_path'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
@@ -112,6 +116,8 @@ def create_from_json(s: Union[str, Path]):
             linear_hidden_size=d['model']['linear_hidden_size'],
             local_scale=d['model']['local_scale'],
             local_layer_num=d['model']['local_layer_num'],
+            speaker_size=d['model']['speaker_size'],
+            speaker_embedding_size=d['model']['speaker_embedding_size'],
             weight_initializer=d['model']['weight_initializer'],
         ),
         loss=LossConfig(
@@ -222,6 +228,15 @@ def backward_compatible(d: Dict):
 
     if 'mean_silence' not in d['loss']:
         d['loss']['mean_silence'] = True
+
+    if 'speaker_size' not in d['model']:
+        d['model']['speaker_size'] = 0
+
+    if 'speaker_embedding_size' not in d['model']:
+        d['model']['speaker_embedding_size'] = 0
+
+    if 'speaker_dict_path' not in d['dataset']:
+        d['dataset']['speaker_dict_path'] = None
 
 
 def assert_config(config: Config):
