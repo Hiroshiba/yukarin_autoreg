@@ -216,6 +216,7 @@ def create(config: DatasetConfig):
 
     wave_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_wave_glob))}
     fn_list = sorted(wave_paths.keys())
+    assert len(fn_list) > 0
 
     silence_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))}
     assert set(fn_list) == set(silence_paths.keys())
