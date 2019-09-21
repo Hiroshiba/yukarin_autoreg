@@ -20,6 +20,8 @@ class DatasetConfig(NamedTuple):
     seed: int
     num_train: Optional[int]
     num_test: int
+    num_times_evaluate: Optional[int]
+    time_length_evaluate: Optional[float]
     fix_contain_not_silence: bool = True
 
 
@@ -103,6 +105,8 @@ def create_from_json(s: Union[str, Path]):
             num_test=d['dataset']['num_test'],
             local_padding_size=d['dataset']['local_padding_size'],
             speaker_dict_path=d['dataset']['speaker_dict_path'],
+            num_times_evaluate=d['dataset']['num_times_evaluate'],
+            time_length_evaluate=d['dataset']['time_length_evaluate'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
@@ -237,6 +241,12 @@ def backward_compatible(d: Dict):
 
     if 'speaker_dict_path' not in d['dataset']:
         d['dataset']['speaker_dict_path'] = None
+
+    if 'num_times_evaluate' not in d['dataset']:
+        d['dataset']['num_times_evaluate'] = None
+
+    if 'time_length_evaluate' not in d['dataset']:
+        d['dataset']['time_length_evaluate'] = None
 
 
 def assert_config(config: Config):

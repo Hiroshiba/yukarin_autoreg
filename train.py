@@ -13,6 +13,8 @@ from tb_chainer import SummaryWriter
 from utility.chainer_extension_utility import TensorBoardReport
 from yukarin_autoreg.config import create_from_json, assert_config
 from yukarin_autoreg.dataset import create as create_dataset
+from yukarin_autoreg.evaluator import GenerateEvaluator
+from yukarin_autoreg.generator import Generator
 from yukarin_autoreg.model import Model, create_predictor
 from yukarin_autoreg.utility.chainer_converter_utility import concat_optional
 
@@ -39,9 +41,13 @@ cuda.get_device_from_id(config.train.gpu[0]).use()
 dataset = create_dataset(config.dataset)
 batchsize_devided = config.train.batchsize // len(config.train.gpu)
 train_iter = MultiprocessIterator(dataset['train'], config.train.batchsize)
-test_iter = MultiprocessIterator(dataset['test'], batchsize_devided, repeat=False, shuffle=False)
-train_eval_iter = MultiprocessIterator(dataset['train_eval'], batchsize_devided, repeat=False, shuffle=False)
+test_iter = MultiprocessIterator(dataset['test'], batchsize_devided, repeat=False, shuffle=True)
+train_test_iter = MultiprocessIterator(dataset['train_test'], batchsize_devided, repeat=False, shuffle=True)
 
+if dataset['test_eval'] is not None:
+    test_eval_iter = MultiprocessIterator(dataset['test_eval'], batchsize_devided, repeat=False, shuffle=True)
+else:
+    test_eval_iter = None
 
 # optimizer
 def create_optimizer(model):
@@ -96,8 +102,13 @@ if config.train.step_shift is not None:
 
 ext = extensions.Evaluator(test_iter, model, concat_optional, device=config.train.gpu[0])
 trainer.extend(ext, name='test', trigger=trigger_log)
-ext = extensions.Evaluator(train_eval_iter, model, concat_optional, device=config.train.gpu[0])
+ext = extensions.Evaluator(train_test_iter, model, concat_optional, device=config.train.gpu[0])
 trainer.extend(ext, name='train', trigger=trigger_log)
+
+if test_eval_iter is not None:
+    generate_evaluator = GenerateEvaluator(generator=Generator(config=config, model=predictor))
+    ext = extensions.Evaluator(test_eval_iter, generate_evaluator, device=config.train.gpu[0])
+    trainer.extend(ext, name='eval', trigger=trigger_log)
 
 ext = extensions.snapshot_object(predictor, filename='main_{.updater.iteration}.npz')
 trainer.extend(ext, trigger=trigger_snapshot)

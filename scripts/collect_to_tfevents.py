@@ -10,7 +10,7 @@ import librosa
 import numpy
 from tensorboardX import SummaryWriter
 
-from scripts.calc_diff_two_wave import calc_diff_two_wave
+from yukarin_autoreg.evaluator import calc_mcd
 
 
 def _to_nums(p: Path, _re=re.compile(r'\d+')):
@@ -64,7 +64,7 @@ def collect_to_tfevents(
             wave_id = p.name[:-8]
             expected = next(expected_wave_dir.glob(f'{wave_id}.*'))
 
-            diff = calc_diff_two_wave(path1=expected, path2=p)
+            diff = calc_mcd(path1=expected, path2=p)
             diffs[iteration].append(diff)
 
     if flag_calc_diff:

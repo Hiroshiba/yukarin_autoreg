@@ -5,6 +5,7 @@ from typing import List, NamedTuple, Union, Dict
 
 import numpy as np
 from chainer.dataset import DatasetMixin
+from chainer.datasets import ConcatenatedDataset
 
 from yukarin_autoreg.config import DatasetConfig
 from yukarin_autoreg.data import encode_16bit, encode_single, decode_single, encode_mulaw
@@ -70,16 +71,23 @@ class BaseWaveDataset(DatasetMixin):
         length = len(local_data.array) * l_scale
         assert abs(length - len(wave_data.wave)) < l_scale * 4, f'{abs(length - len(wave_data.wave))} {l_scale}'
 
-        l_length = length // l_scale
-        l_sl = sl // l_scale
-        l_offset = np.random.randint(l_length - l_sl)
-        offset = l_offset * l_scale
-
         assert local_padding_size % l_scale == 0
         l_pad = local_padding_size // l_scale
 
+        l_length = length // l_scale
+        l_sl = sl // l_scale
+
+        for _ in range(10000):
+            l_offset = np.random.randint(l_length - l_sl)
+            offset = l_offset * l_scale
+
+            silence = np.squeeze(silence_data.resample(sr, index=offset, length=sl))
+            if not silence.all():
+                break
+        else:
+            raise Exception('cannot pick not silence data')
+
         wave = wave_data.wave[offset:offset + sl]
-        silence = np.squeeze(silence_data.resample(sr, index=offset, length=sl))
 
         # local
         l_start, l_end = l_offset - l_pad, l_offset + l_sl + l_pad
@@ -140,19 +148,13 @@ class BaseWaveDataset(DatasetMixin):
             local_data: SamplingData,
             gaussian_noise_sigma: float,
     ):
-        for _ in range(10000):
-            wave, silence, local = self.extract_input(
-                self.sampling_length,
-                wave_data,
-                silence_data,
-                local_data,
-                self.local_padding_size,
-            )
-            if not silence.all():
-                break
-        else:
-            # not raise but return. (because this method will be called in multiprocess.Process)
-            return Exception('cannot pick not silence data')
+        wave, silence, local = self.extract_input(
+            self.sampling_length,
+            wave_data,
+            silence_data,
+            local_data,
+            self.local_padding_size,
+        )
         wave = self.add_noise(wave=wave, gaussian_noise_sigma=gaussian_noise_sigma)
         d = self.convert_to_dict(wave, silence, local)
         return d
@@ -192,6 +194,37 @@ class WavesDataset(BaseWaveDataset):
             silence_data=input.silence,
             local_data=input.local,
             gaussian_noise_sigma=self.gaussian_noise_sigma,
+        )
+
+
+class NonEncodeWavesDataset(DatasetMixin):
+    def __init__(
+            self,
+            inputs: List[Union[Input, LazyInput]],
+            sampling_length: int,
+    ) -> None:
+        self.inputs = inputs
+        self.sampling_length = sampling_length
+
+    def __len__(self):
+        return len(self.inputs)
+
+    def get_example(self, i):
+        input = self.inputs[i]
+        if isinstance(input, LazyInput):
+            input = input.generate()
+
+        wave, silence, local = BaseWaveDataset.extract_input(
+            sampling_length=self.sampling_length,
+            wave_data=input.wave,
+            silence_data=input.silence,
+            local_data=input.local,
+            local_padding_size=0,
+        )
+        return dict(
+            wave=wave,
+            silence=silence,
+            local=local,
         )
 
 
@@ -242,9 +275,9 @@ def create(config: DatasetConfig):
 
     trains = fn_list[num_test:][:num_train]
     tests = fn_list[:num_test]
-    evals = trains[:num_test]
+    train_tests = trains[:num_test]
 
-    def Dataset(fns):
+    def Dataset(fns, for_evaluate=False):
         inputs = [
             LazyInput(
                 path_wave=wave_paths[fn],
@@ -253,15 +286,22 @@ def create(config: DatasetConfig):
             )
             for fn in fns
         ]
-        dataset = WavesDataset(
-            inputs=inputs,
-            sampling_length=config.sampling_length,
-            to_double=not config.only_coarse,
-            bit=config.bit_size,
-            mulaw=config.mulaw,
-            local_padding_size=config.local_padding_size,
-            gaussian_noise_sigma=config.gaussian_noise_sigma,
-        )
+
+        if for_evaluate:
+            dataset = WavesDataset(
+                inputs=inputs,
+                sampling_length=config.sampling_length,
+                to_double=not config.only_coarse,
+                bit=config.bit_size,
+                mulaw=config.mulaw,
+                local_padding_size=config.local_padding_size,
+                gaussian_noise_sigma=config.gaussian_noise_sigma,
+            )
+        else:
+            dataset = NonEncodeWavesDataset(
+                inputs=inputs,
+                sampling_length=int(config.time_length_evaluate * config.sampling_rate),
+            )
 
         if speaker_nums is not None:
             dataset = SpeakerWavesDataset(
@@ -269,10 +309,14 @@ def create(config: DatasetConfig):
                 speaker_nums=[speaker_nums[fn] for fn in fns],
             )
 
+        if for_evaluate:
+            dataset = ConcatenatedDataset([dataset] * config.num_times_evaluate)
+
         return dataset
 
     return {
         'train': Dataset(trains),
         'test': Dataset(tests),
-        'train_eval': Dataset(evals),
+        'train_test': Dataset(train_tests),
+        'test_eval': Dataset(tests, for_evaluate=True) if config.num_times_evaluate is not None else None,
     }
