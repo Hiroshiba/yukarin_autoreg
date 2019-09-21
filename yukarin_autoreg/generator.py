@@ -1,15 +1,15 @@
 from enum import Enum
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 import chainer
 import numpy as np
 from chainer import cuda
 
-from yukarin_autoreg.config import Config
-from yukarin_autoreg.data import decode_single, encode_mulaw, decode_mulaw, encode_single
+from yukarin_autoreg.config import Config, ModelConfig
+from yukarin_autoreg.data import decode_single, decode_mulaw, encode_single
 from yukarin_autoreg.model import create_predictor
-from yukarin_autoreg.utility.chainer_link_utility import mean_params
+from yukarin_autoreg.network.wave_rnn import WaveRNN
 from yukarin_autoreg.wave import Wave
 
 
@@ -23,33 +23,30 @@ class Generator(object):
     def __init__(
             self,
             config: Config,
-            model_path: Union[Path, List[Path]],
-            gpu: int = None,
+            model: WaveRNN,
     ) -> None:
-        self.model_path = model_path
-        self.gpu = gpu
+        self.config = config
+        self.model = model
 
         self.sampling_rate = config.dataset.sampling_rate
         self.mulaw = config.dataset.mulaw
 
-        if isinstance(model_path, Path):
-            self.model = model = create_predictor(config.model)
-            chainer.serializers.load_npz(str(model_path), model)
-        else:
-            # mean weights
-            models = []
-            for p in model_path:
-                model = create_predictor(config.model)
-                chainer.serializers.load_npz(str(p), model)
-                models.append(model)
-            self.model = model = create_predictor(config.model)
-            mean_params(models, model)
-
         assert not self.dual_softmax
 
-        if self.gpu is not None:
-            model.to_gpu(self.gpu)
-            cuda.get_device_from_id(self.gpu).use()
+    @staticmethod
+    def load_model(
+            model_config: ModelConfig,
+            model_path: Path,
+            gpu: int = None,
+    ):
+        predictor = create_predictor(model_config)
+        chainer.serializers.load_npz(str(model_path), predictor)
+
+        if gpu is not None:
+            predictor.to_gpu(gpu)
+            cuda.get_device_from_id(gpu).use()
+
+        return predictor
 
     @property
     def dual_softmax(self):
@@ -71,54 +68,39 @@ class Generator(object):
     def xp(self):
         return self.model.xp
 
-    def forward(self, w: np.ndarray, l: np.ndarray):
-        assert not self.model.with_speaker
-
-        if self.mulaw:
-            w = encode_mulaw(w, mu=2 ** self.model.bit_size)
-            w = self.xp.expand_dims(self.xp.asarray(w), axis=0)
-
-        x_array = w
-        if self.input_categorical:
-            x_array = encode_single(x_array, bit=self.single_bit)
-
-        local = self.xp.expand_dims(self.xp.asarray(l), axis=0)
-
-        with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-            c, hc = self.model(x_array, local)
-
-        c = self.model.sampling(c[:, :, -1], maximum=True)
-        return c, hc
-
     def generate(
             self,
             time_length: float,
             sampling_policy: SamplingPolicy,
+            num_generate: int,
             coarse=None,
-            fine=None,
             local_array: np.ndarray = None,
-            speaker_num: int = None,
+            speaker_nums: List[int] = None,
             hidden_coarse=None,
-            hidden_fine=None,
     ):
+        assert coarse is None or len(coarse) == num_generate
+        assert local_array is None or len(local_array) == num_generate
+        assert speaker_nums is None or len(speaker_nums) == num_generate
+        assert hidden_coarse is None or len(hidden_coarse) == num_generate
+
         length = int(self.sampling_rate * time_length)
 
         if local_array is None:
-            local_array = self.xp.expand_dims(self.xp.empty((length, 0), dtype=np.float32), axis=0)
+            local_array = self.xp.empty((num_generate, length, 0), dtype=np.float32)
         else:
-            local_array = self.xp.expand_dims(self.xp.asarray(local_array), axis=0)
+            local_array = self.xp.asarray(local_array)
 
-        if speaker_num is not None:
-            speaker_num = self.xp.asarray(speaker_num).reshape((-1,))
+        if speaker_nums is not None:
+            speaker_nums = self.xp.asarray(speaker_nums).reshape((-1,))
 
         if self.model.with_local:
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                local_array = self.model.forward_encode(l_array=local_array, s_one=speaker_num)
+                local_array = self.model.forward_encode(l_array=local_array, s_one=speaker_nums)
 
         w_list = []
 
         if coarse is None:
-            c = self.xp.zeros([1], dtype=np.float32)
+            c = self.xp.zeros([num_generate], dtype=np.float32)
             if self.output_categorical:
                 c = encode_single(c, bit=self.single_bit)
         else:
@@ -143,7 +125,7 @@ class Generator(object):
             elif sampling_policy == SamplingPolicy.mix:
                 if len(w_list) < 2:
                     is_random = True
-                elif w_list[-2] == w_list[-1]:
+                elif np.all(w_list[-2] == w_list[-1]):
                     is_random = True
                 else:
                     is_random = False
@@ -155,13 +137,16 @@ class Generator(object):
                 c[c < -1] = -1
                 c[c > 1] = 1
 
-            w = chainer.cuda.to_cpu(c[0])
+            w = chainer.cuda.to_cpu(c)
             if self.output_categorical:
                 w = decode_single(w, bit=self.single_bit)
             w_list.append(w)
 
-        wave = np.array(w_list)
+        wave = np.array(w_list).T
         if self.mulaw:
             wave = decode_mulaw(wave, mu=2 ** self.single_bit)
 
-        return Wave(wave=wave, sampling_rate=self.sampling_rate)
+        return [
+            Wave(wave=w_one, sampling_rate=self.sampling_rate)
+            for w_one in wave
+        ]
