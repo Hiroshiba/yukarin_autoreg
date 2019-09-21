@@ -1,18 +1,13 @@
 import argparse
-import glob
 import re
-from functools import partial
-from itertools import starmap
 from pathlib import Path
-from typing import List
-
-import numpy as np
+from typing import List, Optional
 
 from yukarin_autoreg.config import create_from_json as create_config
+from yukarin_autoreg.dataset import WavesDataset, SpeakerWavesDataset
 from yukarin_autoreg.generator import Generator, SamplingPolicy
 from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.utility.json_utility import save_arguments
-from yukarin_autoreg.wave import Wave
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', '-md', type=Path)
@@ -22,7 +17,6 @@ parser.add_argument('--time_length', '-tl', type=float, default=1)
 parser.add_argument('--num_test', '-nt', type=int, default=5)
 parser.add_argument('--sampling_policy', '-sp', type=SamplingPolicy, default=SamplingPolicy.random)
 parser.add_argument('--num_mean_model', '-nmm', type=int, default=1)
-parser.add_argument('--disable_resume_test', '-drt', action='store_true')
 parser.add_argument('--output_dir', '-o', type=Path, default='./output/')
 parser.add_argument('--gpu', type=int)
 arguments = parser.parse_args()
@@ -34,7 +28,6 @@ time_length: int = arguments.time_length
 num_test: int = arguments.num_test
 sampling_policy: SamplingPolicy = arguments.sampling_policy
 num_mean_model: int = arguments.num_mean_model
-disable_resume_test: bool = arguments.disable_resume_test
 output_dir: Path = arguments.output_dir
 gpu: int = arguments.gpu
 
@@ -60,42 +53,16 @@ def _get_predictor_model_paths(
     return model_paths
 
 
-def process_wo_context(local_path: Path, generator: Generator, postfix='_woc'):
+def process_wo_context(local_path: Path, speaker_num: Optional[int], generator: Generator, postfix='_woc'):
     try:
         l = SamplingData.load(local_path).array
         wave = generator.generate(
             time_length=time_length,
             sampling_policy=sampling_policy,
             local_array=l,
+            speaker_num=speaker_num,
         )
         wave.save(output_dir / (local_path.stem + postfix + '.wav'))
-    except:
-        import traceback
-        traceback.print_exc()
-
-
-def process_resume(wave_path: Path, local_path: Path, generator: Generator, sampling_rate: int, sampling_length: int):
-    try:
-        w = Wave.load(wave_path, sampling_rate=sampling_rate).wave
-        l_data = SamplingData.load(local_path)
-        l = l_data.array
-
-        l_scale = int(sampling_rate // l_data.rate)
-        l_sl = sampling_length // l_scale
-        sampling_length = l_sl * l_scale
-
-        c, f, hc, hf = generator.forward(w[:sampling_length], l[:l_sl])
-
-        wave = generator.generate(
-            time_length=time_length,
-            sampling_policy=sampling_policy,
-            coarse=c,
-            fine=f,
-            local_array=l[l_sl:],
-            hidden_coarse=hc,
-            hidden_fine=hf,
-        )
-        wave.save(output_dir / (wave_path.stem + '.wav'))
     except:
         import traceback
         traceback.print_exc()
@@ -120,33 +87,27 @@ def main():
     )
     print(f'Loaded generator "{models}"')
 
-    if config.dataset.input_wave_glob is not None:
-        wave_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_wave_glob))])
-        local_paths = sorted([Path(p) for p in glob.glob(str(config.dataset.input_local_glob))])
-        assert len(wave_paths) > 0
-        assert len(wave_paths) == len(local_paths)
+    from yukarin_autoreg.dataset import create
+    dataset = create(config.dataset)['test']
 
-        np.random.RandomState(config.dataset.seed).shuffle(wave_paths)
-        np.random.RandomState(config.dataset.seed).shuffle(local_paths)
-        wave_paths = wave_paths[:num_test]
-        local_paths = local_paths[:num_test]
+    if isinstance(dataset, WavesDataset):
+        inputs = dataset.inputs
+        local_paths = [input.path_local for input in inputs[:num_test]]
+        speaker_nums = [None] * num_test
+    elif isinstance(dataset, SpeakerWavesDataset):
+        inputs = dataset.wave_dataset.inputs
+        local_paths = [input.path_local for input in inputs[:num_test]]
+        speaker_nums = dataset.speaker_nums[:num_test]
+    else:
+        raise ValueError(dataset)
 
-        # random
-        process_partial = partial(
-            process_wo_context,
+    # random
+    for local_path, speaker_num in zip(local_paths, speaker_nums):
+        process_wo_context(
             generator=generator,
+            local_path=local_path,
+            speaker_num=speaker_num,
         )
-        list(map(process_partial, local_paths))
-
-        # resume
-        if not disable_resume_test:
-            process_partial = partial(
-                process_resume,
-                generator=generator,
-                sampling_rate=config.dataset.sampling_rate,
-                sampling_length=config.dataset.sampling_rate,
-            )
-            list(starmap(process_partial, zip(wave_paths, local_paths)))
 
 
 if __name__ == '__main__':

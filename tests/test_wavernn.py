@@ -11,6 +11,7 @@ length = 3
 hidden_size = 8
 loal_size = 5
 bit_size = 9
+speaker_size = 10
 
 
 def _make_hidden():
@@ -18,24 +19,34 @@ def _make_hidden():
     return hidden
 
 
-@parameterized_class(('gaussian', 'input_categorical', 'weight_initializer'), [
-    (False, True, None),
-    (True, False, None),
-    (False, False, None),
-    (False, True, 'GlorotNormal'),
-    (False, True, 'HeNormal'),
-    (False, True, 'LeCunNormal'),
-    (False, True, 'Normal'),
-    (False, True, 'GlorotUniform'),
-    (False, True, 'HeUniform'),
-    (False, True, 'LeCunUniform'),
-    (False, True, 'Uniform'),
-    (False, True, 'PossibleOrthogonal'),
+@parameterized_class(('gaussian', 'input_categorical', 'with_speaker', 'weight_initializer'), [
+    (False, True, False, None),
+    (True, False, False, None),
+    (False, True, True, None),
+    (False, True, False, 'GlorotNormal'),
+    (False, True, False, 'HeNormal'),
+    (False, True, False, 'LeCunNormal'),
+    (False, True, False, 'Normal'),
+    (False, True, False, 'GlorotUniform'),
+    (False, True, False, 'HeUniform'),
+    (False, True, False, 'LeCunUniform'),
+    (False, True, False, 'Uniform'),
+    (False, True, False, 'PossibleOrthogonal'),
+    (False, True, True, 'GlorotNormal'),
+    (False, True, True, 'HeNormal'),
+    (False, True, True, 'LeCunNormal'),
+    (False, True, True, 'Normal'),
+    (False, True, True, 'GlorotUniform'),
+    (False, True, True, 'HeUniform'),
+    (False, True, True, 'LeCunUniform'),
+    (False, True, True, 'Uniform'),
+    (False, True, True, 'PossibleOrthogonal'),
 ])
 class TestWaveRNN(unittest.TestCase):
     def setUp(self):
         gaussian = self.gaussian
         input_categorical = self.input_categorical
+        with_speaker = self.with_speaker
         weight_initializer = self.weight_initializer
 
         if input_categorical:
@@ -47,6 +58,11 @@ class TestWaveRNN(unittest.TestCase):
 
         self.l_array = np.random.rand(batch_size, length, loal_size).astype(np.float32)
         self.l_one = np.random.rand(batch_size, 1, loal_size).astype(np.float32)
+
+        if with_speaker:
+            self.s_one = np.random.randint(0, speaker_size, size=[batch_size, ]).astype(np.int32)
+        else:
+            self.s_one = None
 
         wave_rnn = WaveRNN(
             dual_softmax=False,
@@ -60,6 +76,8 @@ class TestWaveRNN(unittest.TestCase):
             local_size=loal_size,
             local_scale=1,
             local_layer_num=2,
+            speaker_size=speaker_size if with_speaker else 0,
+            speaker_embedding_size=3 if with_speaker else 0,
             weight_initializer=get_weight_initializer(weight_initializer),
         )
 
@@ -76,6 +94,7 @@ class TestWaveRNN(unittest.TestCase):
         wave_rnn(
             x_array=self.x_array,
             l_array=self.l_array,
+            s_one=self.s_one,
         )
 
     def test_call_with_local_padding(self):
@@ -86,6 +105,7 @@ class TestWaveRNN(unittest.TestCase):
             wave_rnn(
                 x_array=self.x_array,
                 l_array=self.l_array,
+                s_one=self.s_one,
                 local_padding_size=local_padding_size,
             )
 
@@ -97,13 +117,14 @@ class TestWaveRNN(unittest.TestCase):
         wave_rnn(
             x_array=self.x_array,
             l_array=l_array,
+            s_one=self.s_one,
             local_padding_size=local_padding_size,
         )
 
     def test_forward_one(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_one = wave_rnn.forward_encode(self.l_one).data
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=self.s_one).data
         wave_rnn.forward_one(
             self.x_one[:, 0],
             l_one[:, 0],
@@ -113,7 +134,7 @@ class TestWaveRNN(unittest.TestCase):
     def test_batchsize1_forward(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_array = wave_rnn.forward_encode(self.l_array).data
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=self.s_one).data
 
         oa, ha = wave_rnn.forward_rnn(
             x_array=self.x_array,
@@ -133,7 +154,7 @@ class TestWaveRNN(unittest.TestCase):
     def test_batchsize1_forward_one(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_one = wave_rnn.forward_encode(self.l_one).data
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=self.s_one).data
 
         oa, ha = wave_rnn.forward_one(
             self.x_one[:, 0],
@@ -157,10 +178,11 @@ class TestWaveRNN(unittest.TestCase):
         oa, ha = wave_rnn(
             x_array=self.x_array,
             l_array=self.l_array,
+            s_one=self.s_one,
             hidden=hidden,
         )
 
-        l_array = wave_rnn.forward_encode(self.l_array).data
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=self.s_one).data
         ob, hb = wave_rnn.forward_rnn(
             x_array=self.x_array[:, :-1],
             l_array=l_array[:, 1:],
@@ -173,7 +195,7 @@ class TestWaveRNN(unittest.TestCase):
     def test_same_forward_rnn_and_forward_one(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_array = wave_rnn.forward_encode(self.l_array).data
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=self.s_one).data
 
         oa, ha = wave_rnn.forward_rnn(
             x_array=self.x_array,
