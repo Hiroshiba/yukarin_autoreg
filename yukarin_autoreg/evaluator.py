@@ -59,15 +59,16 @@ class GenerateEvaluator(Chain):
             self,
             generator: Generator,
             time_length: float,
+            sampling_policy: SamplingPolicy = SamplingPolicy.random,
     ) -> None:
         super().__init__()
         self.generator = generator
         self.time_length = time_length
+        self.sampling_policy = sampling_policy
 
     def __call__(
             self,
             wave: np.ndarray,
-            silence: np.ndarray,
             local: Optional[np.ndarray],
             speaker_num: Optional[np.ndarray] = None,
     ):
@@ -76,7 +77,7 @@ class GenerateEvaluator(Chain):
 
         wave_output = self.generator.generate(
             time_length=self.time_length,
-            sampling_policy=SamplingPolicy.random,
+            sampling_policy=self.sampling_policy,
             num_generate=batchsize,
             local_array=local,
             speaker_nums=speaker_num,
