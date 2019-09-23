@@ -287,7 +287,7 @@ def create(config: DatasetConfig):
             for fn in fns
         ]
 
-        if for_evaluate:
+        if not for_evaluate:
             dataset = WavesDataset(
                 inputs=inputs,
                 sampling_length=config.sampling_length,
@@ -310,7 +310,7 @@ def create(config: DatasetConfig):
             )
 
         if for_evaluate:
-            dataset = ConcatenatedDataset([dataset] * config.num_times_evaluate)
+            dataset = ConcatenatedDataset(*([dataset] * config.num_times_evaluate))
 
         return dataset
 

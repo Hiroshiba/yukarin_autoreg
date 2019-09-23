@@ -106,9 +106,10 @@ ext = extensions.Evaluator(train_test_iter, model, concat_optional, device=confi
 trainer.extend(ext, name='train', trigger=trigger_log)
 
 if test_eval_iter is not None:
-    generate_evaluator = GenerateEvaluator(generator=Generator(config=config, model=predictor))
-    ext = extensions.Evaluator(test_eval_iter, generate_evaluator, device=config.train.gpu[0])
-    trainer.extend(ext, name='eval', trigger=trigger_log)
+    generator = Generator(config=config, model=predictor)
+    generate_evaluator = GenerateEvaluator(generator=generator, time_length=config.dataset.time_length_evaluate)
+    ext = extensions.Evaluator(test_eval_iter, generate_evaluator, concat_optional, device=config.train.gpu[0])
+    trainer.extend(ext, name='eval', trigger=trigger_snapshot)
 
 ext = extensions.snapshot_object(predictor, filename='main_{.updater.iteration}.npz')
 trainer.extend(ext, trigger=trigger_snapshot)

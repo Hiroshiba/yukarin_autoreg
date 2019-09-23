@@ -58,9 +58,11 @@ class GenerateEvaluator(Chain):
     def __init__(
             self,
             generator: Generator,
+            time_length: float,
     ) -> None:
         super().__init__()
         self.generator = generator
+        self.time_length = time_length
 
     def __call__(
             self,
@@ -70,6 +72,7 @@ class GenerateEvaluator(Chain):
             speaker_num: Optional[np.ndarray] = None,
     ):
         batchsize = len(wave)
+        wave = chainer.cuda.to_cpu(wave)
 
         wave_output = self.generator.generate(
             time_length=self.time_length,
@@ -87,5 +90,5 @@ class GenerateEvaluator(Chain):
 
         scores = {'mcd': np.mean(mcd_list)}
 
-        chainer.report(scores)
+        chainer.report(scores, self)
         return scores
