@@ -89,7 +89,7 @@ class GenerateEvaluator(Chain):
             mcd = calc_mcd(wave1=wi, wave2=wo)
             mcd_list.append(mcd)
 
-        scores = {'mcd': np.mean(mcd_list)}
+        scores = {'mcd': (self.generator.xp.asarray(mcd_list).mean(), batchsize)}
 
         chainer.report(scores, self)
         return scores

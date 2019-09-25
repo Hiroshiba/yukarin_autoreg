@@ -1,4 +1,3 @@
-import argparse
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict
@@ -8,10 +7,10 @@ from chainer import cuda, optimizer_hooks, optimizers, training
 from chainer.iterators import MultiprocessIterator
 from chainer.training import extensions, ParallelUpdater
 from chainer.training.updaters import StandardUpdater
-from tb_chainer import SummaryWriter
+from tensorboardX import SummaryWriter
 
-from utility.chainer_extension_utility import TensorBoardReport
-from yukarin_autoreg.config import create_from_json, assert_config, Config
+from utility.extension_utility import TensorBoardReport
+from yukarin_autoreg.config import assert_config, Config
 from yukarin_autoreg.dataset import create as create_dataset
 from yukarin_autoreg.evaluator import GenerateEvaluator
 from yukarin_autoreg.generator import Generator

@@ -68,4 +68,4 @@ class TestEvaluator(unittest.TestCase):
             local=None,
             speaker_num=speaker_nums,
         )
-        assert scores['mcd'] < 1
+        assert scores['mcd'][0].mean() < 1

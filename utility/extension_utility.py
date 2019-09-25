@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import chainer
-from tb_chainer import SummaryWriter
+from tensorboardX import SummaryWriter
 
 
 class TensorBoardReport(chainer.training.Extension):

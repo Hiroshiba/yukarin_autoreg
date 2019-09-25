@@ -217,7 +217,7 @@ class NonEncodeWavesDataset(DatasetMixin):
             input = input.generate()
 
         sampling_length = int(input.wave.sampling_rate * self.time_length)
-        local_padding_size = int(input.local.rate * self.time_length_padding)
+        local_padding_size = int(input.wave.sampling_rate * self.time_length_padding)
 
         wave, silence, local = BaseWaveDataset.extract_input(
             sampling_length=sampling_length,

@@ -4,8 +4,6 @@ cupy>=6.0.0,<7.0.0
 librosa<0.7.0
 pysptk
 matplotlib
-tensorflow
-git+https://github.com/neka-nat/tensorboard-chainer
 pyworld
 tqdm
 retry
