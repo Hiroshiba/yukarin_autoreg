@@ -1,3 +1,4 @@
+import multiprocessing
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict
@@ -5,8 +6,8 @@ from typing import Any, Dict
 import chainer
 from chainer import cuda, optimizer_hooks, optimizers, training
 from chainer.iterators import MultiprocessIterator
-from chainer.training import extensions, ParallelUpdater
-from chainer.training.updaters import StandardUpdater
+from chainer.training import extensions
+from chainer.training.updaters import StandardUpdater, MultiprocessParallelUpdater
 from tensorboardX import SummaryWriter
 
 from utility.extension_utility import TensorBoardReport
@@ -38,7 +39,14 @@ def create_trainer(
     # dataset
     dataset = create_dataset(config.dataset)
     batchsize_devided = config.train.batchsize // len(config.train.gpu)
-    train_iter = MultiprocessIterator(dataset['train'], config.train.batchsize)
+    train_iters = [
+        MultiprocessIterator(
+            dataset['train'],
+            batchsize_devided,
+            n_processes=multiprocessing.cpu_count() // len(config.train.gpu),
+        )
+        for _ in config.train.gpu
+    ]
     test_iter = MultiprocessIterator(dataset['test'], batchsize_devided, repeat=False, shuffle=True)
     train_test_iter = MultiprocessIterator(dataset['train_test'], batchsize_devided, repeat=False, shuffle=True)
 
@@ -71,17 +79,17 @@ def create_trainer(
     # updater
     if len(config.train.gpu) <= 1:
         updater = StandardUpdater(
-            iterator=train_iter,
+            iterator=train_iters[0],
             optimizer=optimizer,
             converter=concat_optional,
             device=config.train.gpu[0],
         )
     else:
-        updater = ParallelUpdater(
-            iterator=train_iter,
+        updater = MultiprocessParallelUpdater(
+            iterators=train_iters,
             optimizer=optimizer,
             converter=concat_optional,
-            devices={'main' if i == 0 else f'gpu{gpu}': gpu for i, gpu in enumerate(config.train.gpu)},
+            devices=config.train.gpu,
         )
 
     # trainer
