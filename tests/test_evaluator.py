@@ -61,6 +61,7 @@ class TestEvaluator(unittest.TestCase):
         evaluator = GenerateEvaluator(
             generator=generator,
             time_length=0.3,
+            local_padding_time_length=0,
             sampling_policy=SamplingPolicy.maximum,
         )
         scores = evaluator(

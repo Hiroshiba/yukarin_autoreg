@@ -22,6 +22,7 @@ class DatasetConfig(NamedTuple):
     num_test: int
     num_times_evaluate: Optional[int]
     time_length_evaluate: Optional[float]
+    local_padding_time_length_evaluate: float
     fix_contain_not_silence: bool = True
 
 
@@ -107,6 +108,7 @@ def create_from_json(s: Union[str, Path]):
             speaker_dict_path=d['dataset']['speaker_dict_path'],
             num_times_evaluate=d['dataset']['num_times_evaluate'],
             time_length_evaluate=d['dataset']['time_length_evaluate'],
+            local_padding_time_length_evaluate=d['dataset']['local_padding_time_length_evaluate'],
         ),
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
@@ -247,6 +249,9 @@ def backward_compatible(d: Dict):
 
     if 'time_length_evaluate' not in d['dataset']:
         d['dataset']['time_length_evaluate'] = None
+
+    if 'local_padding_time_length_evaluate' not in d['dataset']:
+        d['dataset']['local_padding_time_length_evaluate'] = 0
 
 
 def assert_config(config: Config):

@@ -100,5 +100,7 @@ class Model(Chain):
         loss = F.mean(loss) if self.loss_config.mean_silence else F.sum(loss) / silence.size
         losses['loss'] = loss
 
+        if not chainer.config.train:
+            losses = {key: (l, len(coarse)) for key, l in losses.items()}  # add weight
         chainer.report(losses, self)
         return loss
