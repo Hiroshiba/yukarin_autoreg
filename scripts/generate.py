@@ -3,6 +3,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.dataset import WavesDataset, SpeakerWavesDataset
 from yukarin_autoreg.generator import Generator, SamplingPolicy
@@ -52,6 +54,7 @@ def _get_predictor_model_path(
 def process_wo_context(local_path: Path, speaker_num: Optional[int], generator: Generator, postfix='_woc'):
     try:
         l = SamplingData.load(local_path).array
+        l = np.expand_dims(l, axis=0)
         waves = generator.generate(
             time_length=time_length,
             sampling_policy=sampling_policy,
