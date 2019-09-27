@@ -59,11 +59,13 @@ class GenerateEvaluator(Chain):
             self,
             generator: Generator,
             time_length: float,
+            local_padding_time_length: float,
             sampling_policy: SamplingPolicy = SamplingPolicy.random,
     ) -> None:
         super().__init__()
         self.generator = generator
         self.time_length = time_length
+        self.local_padding_time_length = local_padding_time_length
         self.sampling_policy = sampling_policy
 
     def __call__(
@@ -76,7 +78,7 @@ class GenerateEvaluator(Chain):
         wave = chainer.cuda.to_cpu(wave)
 
         wave_output = self.generator.generate(
-            time_length=self.time_length,
+            time_length=self.time_length + self.local_padding_time_length * 2,
             sampling_policy=self.sampling_policy,
             num_generate=batchsize,
             local_array=local,
@@ -86,6 +88,11 @@ class GenerateEvaluator(Chain):
         mcd_list = []
         for wi, wo in zip(wave, wave_output):
             wi = Wave(wave=wi, sampling_rate=wo.sampling_rate)
+
+            if self.local_padding_time_length > 0:
+                pad = int(wo.sampling_rate * self.local_padding_time_length)
+                wo.wave = wo.wave[pad:-pad]
+
             mcd = calc_mcd(wave1=wi, wave2=wo)
             mcd_list.append(mcd)
 

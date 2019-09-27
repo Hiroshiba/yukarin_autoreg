@@ -104,7 +104,11 @@ def create_trainer(
 
     if test_eval_iter is not None:
         generator = Generator(config=config, model=predictor)
-        generate_evaluator = GenerateEvaluator(generator=generator, time_length=config.dataset.time_length_evaluate)
+        generate_evaluator = GenerateEvaluator(
+            generator=generator,
+            time_length=config.dataset.time_length_evaluate,
+            local_padding_time_length=config.dataset.local_padding_time_length_evaluate,
+        )
         ext = extensions.Evaluator(test_eval_iter, generate_evaluator, concat_optional, device=config.train.gpu[0])
         trainer.extend(ext, name='eval', trigger=trigger_snapshot)
 
