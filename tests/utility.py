@@ -1,3 +1,5 @@
+from collections import namedtuple
+from pathlib import Path
 from typing import Callable, Dict, Optional
 
 import chainer
@@ -5,6 +7,7 @@ import numpy as np
 from chainer.iterators import MultiprocessIterator
 from chainer.training.updaters import StandardUpdater
 
+from yukarin_autoreg.config import ModelConfig
 from yukarin_autoreg.dataset import BaseWaveDataset
 from yukarin_autoreg.model import Model
 from yukarin_autoreg.utility.chainer_converter_utility import concat_optional
@@ -138,3 +141,59 @@ def train_support(
     print(observation)
     if last_hook is not None:
         last_hook(observation)
+
+
+def get_test_config(
+        to_double,
+        bit,
+        mulaw,
+        input_categorical,
+        gaussian,
+        speaker_size,
+):
+    return namedtuple('Config', ['dataset', 'model'])(
+        dataset=namedtuple('DatasetConfig', [
+            'sampling_rate',
+            'mulaw',
+        ])(
+            sampling_rate=8000,
+            mulaw=mulaw,
+        ),
+        model=ModelConfig(
+            dual_softmax=to_double,
+            bit_size=bit,
+            gaussian=gaussian,
+            input_categorical=input_categorical,
+            hidden_size=896,
+            local_size=0,
+            conditioning_size=128,
+            embedding_size=256,
+            linear_hidden_size=512,
+            local_scale=1,
+            local_layer_num=2,
+            speaker_size=speaker_size,
+            speaker_embedding_size=speaker_size // 4,
+            weight_initializer=None,
+        ),
+    )
+
+
+def get_test_model_path(
+        to_double,
+        bit,
+        mulaw,
+        input_categorical,
+        gaussian,
+        speaker_size,
+        iteration,
+):
+    return Path(
+        f'tests/data/test_training_wavernn'
+        f'-to_double={to_double}'
+        f'-bit={bit}'
+        f'-mulaw={mulaw}'
+        f'-input_categorical={input_categorical}'
+        f'-gaussian={gaussian}'
+        f'-speaker_size={speaker_size}'
+        f'-iteration={iteration}.npz'
+    )

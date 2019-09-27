@@ -201,10 +201,12 @@ class NonEncodeWavesDataset(DatasetMixin):
     def __init__(
             self,
             inputs: List[Union[Input, LazyInput]],
-            sampling_length: int,
+            time_length: float,
+            time_length_padding: float = 0.5,
     ) -> None:
         self.inputs = inputs
-        self.sampling_length = sampling_length
+        self.time_length = time_length
+        self.time_length_padding = time_length_padding
 
     def __len__(self):
         return len(self.inputs)
@@ -214,16 +216,18 @@ class NonEncodeWavesDataset(DatasetMixin):
         if isinstance(input, LazyInput):
             input = input.generate()
 
+        sampling_length = int(input.wave.sampling_rate * self.time_length)
+        local_padding_size = int(input.wave.sampling_rate * self.time_length_padding)
+
         wave, silence, local = BaseWaveDataset.extract_input(
-            sampling_length=self.sampling_length,
+            sampling_length=sampling_length,
             wave_data=input.wave,
             silence_data=input.silence,
             local_data=input.local,
-            local_padding_size=0,
+            local_padding_size=local_padding_size,
         )
         return dict(
             wave=wave,
-            silence=silence,
             local=local,
         )
 
@@ -300,7 +304,7 @@ def create(config: DatasetConfig):
         else:
             dataset = NonEncodeWavesDataset(
                 inputs=inputs,
-                sampling_length=int(config.time_length_evaluate * config.sampling_rate),
+                time_length=config.time_length_evaluate,
             )
 
         if speaker_nums is not None:
