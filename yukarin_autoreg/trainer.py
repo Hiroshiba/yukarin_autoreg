@@ -24,7 +24,10 @@ def create_trainer(
         output: Path,
 ):
     assert_config(config)
-    output.mkdir()
+
+    assert not output.exists() or not (output / 'config.json').exists()
+
+    output.mkdir(exist_ok=True)
     config.save_as_json((output / 'config.json').absolute())
 
     # model
@@ -33,8 +36,9 @@ def create_trainer(
         chainer.serializers.load_npz(config.train.trained_model, predictor)
     model = Model(loss_config=config.loss, predictor=predictor, local_padding_size=config.dataset.local_padding_size)
 
-    model.to_gpu(config.train.gpu[0])
-    cuda.get_device_from_id(config.train.gpu[0]).use()
+    if len(config.train.gpu) <= 1:
+        model.to_gpu(config.train.gpu[0])
+        cuda.get_device_from_id(config.train.gpu[0]).use()
 
     # dataset
     dataset = create_dataset(config.dataset)
