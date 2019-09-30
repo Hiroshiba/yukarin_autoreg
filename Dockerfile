@@ -34,7 +34,7 @@ COPY yukarin_autoreg /app/yukarin_autoreg
 COPY scripts /app/scripts
 COPY train*.py /app/
 
-# mysql
+# optuna
 RUN apt-get install -y python3-dev libmysqlclient-dev
 RUN pip install optuna mysqlclient
 

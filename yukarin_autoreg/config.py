@@ -60,6 +60,7 @@ class TrainConfig(NamedTuple):
     linear_shift: Dict[str, Any]
     step_shift: Dict[str, Any]
     trained_model: Optional[str]
+    optuna: Optional[Dict[str, Any]]
 
 
 class ProjectConfig(NamedTuple):
@@ -145,6 +146,7 @@ def create_from_dict(d: Dict[str, Any]):
             linear_shift=d['train']['linear_shift'],
             step_shift=d['train']['step_shift'],
             trained_model=d['train']['trained_model'],
+            optuna=d['train']['optuna'],
         ),
         project=ProjectConfig(
             name=d['project']['name'],
@@ -255,6 +257,9 @@ def backward_compatible(d: Dict):
 
     if 'local_padding_time_length_evaluate' not in d['dataset']:
         d['dataset']['local_padding_time_length_evaluate'] = 0
+
+    if 'optuna' not in d['train']:
+        d['train']['optuna'] = None
 
 
 def assert_config(config: Config):

@@ -1,13 +1,23 @@
 import argparse
 import importlib
 import sys
+from functools import partial
 from pathlib import Path
+from typing import Dict, Any
 
 import optuna
-from optuna.samplers import RandomSampler
+from optuna.integration import ChainerPruningExtension
+from optuna.pruners import SuccessiveHalvingPruner
 
-from yukarin_autoreg.config import create_from_json, Config
+from yukarin_autoreg.config import Config
 from yukarin_autoreg.trainer import create_trainer
+
+
+def param_dict_to_name(param_dict: Dict[str, Any]):
+    return ','.join(
+        f'{k}={v:.2e}' if isinstance(v, float) else f'{k}={v}'
+        for k, v in sorted(param_dict.items())
+    )
 
 
 def create_config(config_path: Path, trial: optuna.Trial) -> Config:
@@ -16,38 +26,59 @@ def create_config(config_path: Path, trial: optuna.Trial) -> Config:
     return config
 
 
-def objective(trial):
-    x = trial.suggest_categorical('x', (0, 1, 2, 3, 4))
-    return x
+def objective(
+        trial: optuna.Trial,
+        config_path: Path,
+        root_output: Path,
+):
+    config = create_config(config_path=config_path, trial=trial)
+    postfix = param_dict_to_name(trial.params)
+    output = root_output / (f'{trial.number}-' + postfix)
+
+    trainer = create_trainer(config=config, output=output)
+    trainer.extend(ChainerPruningExtension(
+        trial=trial,
+        observation_key=config.train.optuna['key'],
+        pruner_trigger=(config.train.optuna['iteration'], 'iteration')),
+    )
+    trainer.run()
+
+    log_last = trainer.get_extension('LogReport').log[-1]
+    return log_last[config.train.optuna['key']]
 
 
 def train_optuna(
-        # config_json_path: Path,
-        # output: Path,
+        config_path: Path,
+        root_output: Path,
+        name: str,
+        storage: str,
+        num_trials: int,
 ):
     study = optuna.create_study(
-        study_name='hoge',
-        storage='sqlite:///example.db',
-        sampler=RandomSampler(),
+        storage=storage,
+        pruner=SuccessiveHalvingPruner(
+            min_resource=1,
+            reduction_factor=2,
+            min_early_stopping_rate=1,
+        ),
+        study_name=name,
+        load_if_exists=True,
     )
-
-    # config = create_from_json(config_json_path)
-    # trainer = create_trainer(config=config, output=output)
-    # trainer.run()
-
-    study.optimize(objective, n_trials=10)
-
-    import code
-    code.interact(local=locals())
+    objective_wrapper = partial(
+        objective,
+        config_path=config_path,
+        root_output=root_output,
+    )
+    study.optimize(func=objective_wrapper, n_trials=num_trials)
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('config_json_path', type=Path)
-    # parser.add_argument('output', type=Path)
-    # arguments = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config_path', type=Path)
+    parser.add_argument('root_output', type=Path)
+    parser.add_argument('--name')
+    parser.add_argument('--storage')
+    parser.add_argument('--num_trials', type=int)
+    arguments = parser.parse_args()
 
-    train_optuna(
-        # config_json_path=arguments.config_json_path,
-        # output=arguments.output,
-    )
+    train_optuna(**vars(arguments))
