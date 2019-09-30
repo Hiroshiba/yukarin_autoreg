@@ -6,14 +6,15 @@ RUN apt-get update && \
 ENV LC_ALL C.UTF-8
 
 # pyenv, python
+ENV PYENV_ROOT /.pyenv
 RUN curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash
-ENV PATH /root/.pyenv/shims:/root/.pyenv/bin:$PATH
+ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 RUN eval "$(pyenv init -)" && \
     pyenv install miniconda3-latest && \
     pyenv global miniconda3-latest && \
     pyenv rehash
 
-RUN pip install -U pip cython
+RUN conda install -y python=3.7.3 numpy cython
 
 # for ChainerX
 ENV CHAINER_BUILD_CHAINERX 1
@@ -24,14 +25,17 @@ ENV MAKEFLAGS -j8
 # install requirements
 WORKDIR /app
 COPY requirements.txt /app/
-RUN pip install -U numpy  # for pysptk
-RUN pip install -U -r requirements.txt
+RUN pip install -r requirements.txt
 
 # add applications
 COPY utility /app/utility
 COPY tests /app/tests
 COPY yukarin_autoreg /app/yukarin_autoreg
 COPY scripts /app/scripts
-COPY train.py /app/
+COPY train*.py /app/
+
+# mysql
+RUN apt-get install -y python3-dev libmysqlclient-dev
+RUN pip install optuna mysqlclient
 
 CMD bash
