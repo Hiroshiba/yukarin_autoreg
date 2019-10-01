@@ -1,6 +1,7 @@
 import argparse
 import importlib
 import sys
+import traceback
 from functools import partial
 from pathlib import Path
 from typing import Dict, Any
@@ -35,13 +36,17 @@ def objective(
     postfix = param_dict_to_name(trial.params)
     output = root_output / (f'{trial.number}-' + postfix)
 
-    trainer = create_trainer(config=config, output=output)
-    trainer.extend(ChainerPruningExtension(
-        trial=trial,
-        observation_key=config.train.optuna['key'],
-        pruner_trigger=(config.train.optuna['iteration'], 'iteration')),
-    )
-    trainer.run()
+    try:
+        trainer = create_trainer(config=config, output=output)
+        trainer.extend(ChainerPruningExtension(
+            trial=trial,
+            observation_key=config.train.optuna['key'],
+            pruner_trigger=(config.train.optuna['iteration'], 'iteration')),
+        )
+        trainer.run()
+    except:
+        traceback.print_exc()
+        return 1e+10
 
     log_last = trainer.get_extension('LogReport').log[-1]
     return log_last[config.train.optuna['key']]
