@@ -6,9 +6,12 @@ from functools import partial
 from pathlib import Path
 from typing import Dict, Any
 
+import chainer
 import optuna
 from optuna.integration import ChainerPruningExtension
 from optuna.pruners import SuccessiveHalvingPruner
+from optuna.storages import RDBStorage
+from optuna.structs import TrialPruned
 
 from yukarin_autoreg.config import Config
 from yukarin_autoreg.trainer import create_trainer
@@ -44,9 +47,9 @@ def objective(
             pruner_trigger=(config.train.optuna['iteration'], 'iteration')),
         )
         trainer.run()
-    except:
+    except chainer.cuda.cupy.cuda.memory.OutOfMemoryError as e:
         traceback.print_exc()
-        return 1e+10
+        raise TrialPruned()
 
     log_last = trainer.get_extension('LogReport').log[-1]
     return log_last[config.train.optuna['key']]
@@ -60,12 +63,8 @@ def train_optuna(
         num_trials: int,
 ):
     study = optuna.create_study(
-        storage=storage,
-        pruner=SuccessiveHalvingPruner(
-            min_resource=1,
-            reduction_factor=2,
-            min_early_stopping_rate=1,
-        ),
+        storage=RDBStorage(storage, engine_kwargs=dict(pool_recycle=3600)),
+        pruner=SuccessiveHalvingPruner(),
         study_name=name,
         load_if_exists=True,
     )
