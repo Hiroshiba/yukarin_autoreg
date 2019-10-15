@@ -60,7 +60,7 @@ def process_wo_context(local_path: Path, speaker_num: Optional[int], generator: 
             sampling_policy=sampling_policy,
             num_generate=1,
             local_array=l,
-            speaker_nums=[speaker_num],
+            speaker_nums=[speaker_num] if speaker_num is not None else None,
         )
         waves[0].save(output_dir / (local_path.stem + postfix + '.wav'))
     except:
