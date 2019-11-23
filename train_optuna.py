@@ -9,7 +9,7 @@ from typing import Dict, Any
 import chainer
 import optuna
 from optuna.integration import ChainerPruningExtension
-from optuna.pruners import SuccessiveHalvingPruner
+from optuna.pruners import PercentilePruner
 from optuna.storages import RDBStorage
 from optuna.structs import TrialPruned
 
@@ -63,8 +63,8 @@ def train_optuna(
         num_trials: int,
 ):
     study = optuna.create_study(
-        storage=RDBStorage(storage, engine_kwargs=dict(pool_recycle=3600)),
-        pruner=SuccessiveHalvingPruner(),
+        storage=RDBStorage(storage),
+        pruner=PercentilePruner(25),
         study_name=name,
         load_if_exists=True,
     )
