@@ -75,10 +75,8 @@ class BasePhoneme(object):
 
 class SegKitPhoneme(BasePhoneme):
     phoneme_list = (
-        'a', 'i', 'u', 'e', 'o', 'a:', 'i:', 'u:', 'e:', 'o:', 'N', 'w', 'y', 'j',
-        'my', 'ky', 'dy', 'by', 'gy', 'ny', 'hy', 'ry', 'py',
-        'p', 't', 'k', 'ts', 'ch', 'b', 'd', 'g', 'z',
-        'm', 'n', 's', 'sh', 'h', 'f', 'r', 'q', 'sp',
+        'a', 'i', 'u', 'e', 'o', 'a:', 'i:', 'u:', 'e:', 'o:', 'N', 'w', 'y', 'j', 'my', 'ky', 'dy', 'by', 'gy', 'ny',
+        'hy', 'ry', 'py', 'p', 't', 'k', 'ts', 'ch', 'b', 'd', 'g', 'z', 'm', 'n', 's', 'sh', 'h', 'f', 'r', 'q', 'sp',
     )
     num_phoneme = len(phoneme_list)
     space_phoneme = 'sp'
@@ -94,8 +92,8 @@ class SegKitPhoneme(BasePhoneme):
 
 class JvsPhoneme(BasePhoneme):
     phoneme_list = (
-        'pau', 'I', 'N', 'U', 'a', 'b', 'by', 'ch', 'cl', 'd', 'dy', 'e', 'f', 'g', 'gy', 'h', 'hy', 'i', 'j', 'k', 'ky', 'm',
-        'my', 'n', 'ny', 'o', 'p', 'py', 'r', 'ry', 's', 'sh', 't', 'ts', 'u', 'v', 'w', 'y', 'z',
+        'pau', 'I', 'N', 'U', 'a', 'b', 'by', 'ch', 'cl', 'd', 'dy', 'e', 'f', 'g', 'gy', 'h', 'hy', 'i', 'j', 'k',
+        'ky', 'm', 'my', 'n', 'ny', 'o', 'p', 'py', 'r', 'ry', 's', 'sh', 't', 'ts', 'u', 'v', 'w', 'y', 'z',
     )
     num_phoneme = len(phoneme_list)
     space_phoneme = 'pau'
@@ -109,12 +107,29 @@ class JvsPhoneme(BasePhoneme):
         return phonemes
 
 
+class KiritanPhoneme(BasePhoneme):
+    phoneme_list = (
+        'pau', 'a', 'b', 'ch', 'cl', 'd', 'e', 'f', 'g', 'gy', 'h', 'hy', 'i', 'j', 'k', 'ky', 'm', 'my', 'n', 'N',
+        'ny', 'o', 'p', 'py', 'r', 'ry', 's', 'sh', 't', 'ts', 'u', 'v', 'w', 'y', 'z',
+    )
+
+    num_phoneme = len(phoneme_list)
+    space_phoneme = 'pau'
+
+    @classmethod
+    def convert(cls, phonemes: List['SegKitPhoneme']):
+        phonemes = list(map(lambda p: p if p != 'br' else cls.space_phoneme, phonemes))
+        return phonemes
+
+
 class PhonemeType(str, Enum):
     seg_kit = 'seg_kit'
     jvs = 'jvs'
+    kiritan = 'kiritan'
 
 
 phoneme_type_to_class = {
     PhonemeType.seg_kit: SegKitPhoneme,
     PhonemeType.jvs: JvsPhoneme,
+    PhonemeType.kiritan: KiritanPhoneme,
 }
