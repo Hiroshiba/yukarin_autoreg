@@ -32,7 +32,7 @@ def process(
     # assert that nearly length
     max_length = max(len(a) for a in arrays)
     for a in arrays:
-        assert abs((max_length - len(a)) / rate) <= error_time_length, f'{max_length}, {len(a)}, {paths}'
+        assert abs((max_length - len(a)) / rate) <= error_time_length, f'{max_length / rate}, {len(a) / rate}, {paths}'
 
     if mode == 'min':
         min_length = min(len(a) for a in arrays)

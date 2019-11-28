@@ -4,7 +4,6 @@ cupy
 librosa<0.7.0
 pysptk
 matplotlib
-pyworld
 tqdm
 retry
 tensorboardX

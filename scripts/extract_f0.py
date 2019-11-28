@@ -1,11 +1,13 @@
 import argparse
 import glob
 import multiprocessing
+from functools import partial
+from pathlib import Path
+
 import numpy as np
 import pyworld
 import tqdm
-from functools import partial
-from pathlib import Path
+from scipy.interpolate import interp1d
 
 from utility.json_utility import save_arguments
 from yukarin_autoreg.wave import Wave
@@ -18,6 +20,7 @@ def process(
         frame_period: float,
         f0_floor: float,
         f0_ceil: float,
+        with_vuv: bool,
 ):
     w = Wave.load(path, sampling_rate).wave.astype(np.float64)
 
@@ -30,13 +33,31 @@ def process(
     )
     f0 = pyworld.stonemask(w, f0, t, sampling_rate)
 
+    vuv = f0 != 0
     f0_log = np.zeros_like(f0)
-    f0_log[f0 != 0] = np.log(f0[f0 != 0])
+    f0_log[vuv] = np.log(f0[vuv])
+
+    if not with_vuv:
+        array = f0_log
+    else:
+        f0_log_voiced = f0_log[vuv]
+        t_voiced = t[vuv]
+
+        interp = interp1d(
+            t_voiced,
+            f0_log_voiced,
+            kind='linear',
+            bounds_error=False,
+            fill_value=(f0_log_voiced[0], f0_log_voiced[-1]),
+        )
+        f0_log = interp(t)
+
+        array = np.stack([f0_log, vuv.astype(f0_log.dtype)], axis=1)
 
     rate = int(1000 // frame_period)
 
     out = output_directory / (path.stem + '.npy')
-    np.save(str(out), dict(array=f0_log, rate=rate))
+    np.save(str(out), dict(array=array, rate=rate))
 
 
 def main():
@@ -47,6 +68,7 @@ def main():
     parser.add_argument('--frame_period', '-fp', type=float, default=5.0)
     parser.add_argument('--f0_floor', '-ff', type=int, default=71.0)
     parser.add_argument('--f0_ceil', '-fc', type=int, default=800.0)
+    parser.add_argument('--with_vuv', '-wv', action='store_true')
     config = parser.parse_args()
 
     input_glob = config.input_glob
@@ -55,6 +77,7 @@ def main():
     frame_period: float = config.frame_period
     f0_floor: float = config.f0_floor
     f0_ceil: float = config.f0_ceil
+    with_vuv: bool = config.with_vuv
 
     output_directory.mkdir(exist_ok=True)
     save_arguments(config, output_directory / 'arguments.json')
@@ -67,6 +90,7 @@ def main():
         frame_period=frame_period,
         f0_floor=f0_floor,
         f0_ceil=f0_ceil,
+        with_vuv=with_vuv,
     )
 
     pool = multiprocessing.Pool()

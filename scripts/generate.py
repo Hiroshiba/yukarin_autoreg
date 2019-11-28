@@ -53,8 +53,8 @@ def _get_predictor_model_path(
 
 def process_wo_context(local_path: Path, speaker_num: Optional[int], generator: Generator, postfix='_woc'):
     try:
-        l = SamplingData.load(local_path).array
-        l = np.expand_dims(l, axis=0)
+        l_data = SamplingData.load(local_path)
+        l = np.expand_dims(l_data.array[:int((time_length + 5) * l_data.rate)], axis=0)
         waves = generator.generate(
             time_length=time_length,
             sampling_policy=sampling_policy,
