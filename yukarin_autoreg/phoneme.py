@@ -118,7 +118,9 @@ class KiritanPhoneme(BasePhoneme):
 
     @classmethod
     def convert(cls, phonemes: List['SegKitPhoneme']):
-        phonemes = list(map(lambda p: p if p != 'br' else cls.space_phoneme, phonemes))
+        for phoneme in phonemes:
+            if phoneme.phoneme == 'br':
+                phoneme.phoneme = cls.space_phoneme
         return phonemes
 
 
