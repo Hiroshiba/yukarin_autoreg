@@ -1,6 +1,6 @@
 numpy
-chainer>=6.0.0,<7.0.0
-cupy>=6.0.0,<7.0.0
+chainer
+cupy
 librosa<0.7.0
 pysptk
 matplotlib
@@ -9,4 +9,5 @@ tqdm
 retry
 tensorboardX
 parameterized
+optuna
 git+https://github.com/Hiroshiba/kiritan_singing_label_reader

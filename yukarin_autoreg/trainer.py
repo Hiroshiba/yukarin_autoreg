@@ -1,3 +1,4 @@
+import argparse
 from copy import copy
 from pathlib import Path
 from typing import Any, Dict
@@ -23,8 +24,8 @@ def create_trainer(
         output: Path,
 ):
     assert_config(config)
-    output.mkdir()
-    config.save_as_json((output / 'config.json').absolute())
+    if output.exists():
+        raise Exception(f'output directory {output} already exists.')
 
     # model
     predictor = create_predictor(config.model)
@@ -85,6 +86,9 @@ def create_trainer(
         )
 
     # trainer
+    output.mkdir()
+    config.save_as_json((output / 'config.json').absolute())
+
     trigger_log = (config.train.log_iteration, 'iteration')
     trigger_snapshot = (config.train.snapshot_iteration, 'iteration')
     trigger_stop = (config.train.stop_iteration, 'iteration') if config.train.stop_iteration is not None else None
