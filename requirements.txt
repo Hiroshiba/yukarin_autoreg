@@ -9,4 +9,3 @@ retry
 tensorboardX
 parameterized
 optuna
-git+https://github.com/Hiroshiba/kiritan_singing_label_reader
