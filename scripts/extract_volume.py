@@ -18,18 +18,23 @@ def process(
         sampling_rate: int,
         frame_length: int,
         hop_length: int,
+        top_db: int,
+        normalize: bool,
 ):
     assert sampling_rate % hop_length == 0
 
     w = Wave.load(path, sampling_rate).wave
 
     mse = librosa.feature.rmse(w, frame_length=frame_length, hop_length=hop_length) ** 2
-    db = librosa.power_to_db(mse.squeeze())[:-1]
+    array = librosa.power_to_db(mse.squeeze(), top_db=top_db)[:-1]
+
+    if normalize:
+        array = np.clip((array - array.max()) / top_db + 1, 0, 1)
 
     rate = sampling_rate // hop_length
 
     out = output_directory / (path.stem + '.npy')
-    np.save(str(out), dict(array=db, rate=rate))
+    np.save(str(out), dict(array=array, rate=rate))
 
 
 def main():
@@ -39,6 +44,8 @@ def main():
     parser.add_argument('--sampling_rate', '-sr', type=int)
     parser.add_argument('--frame_length', '-fl', type=int, default=800)
     parser.add_argument('--hop_length', '-hl', type=int, default=200)
+    parser.add_argument('--top_db', '-td', type=int, default=80)
+    parser.add_argument('--normalize', '-n', action='store_true')
     config = parser.parse_args()
 
     input_glob = config.input_glob
@@ -46,6 +53,8 @@ def main():
     sampling_rate: int = config.sampling_rate
     frame_length: int = config.frame_length
     hop_length: int = config.hop_length
+    top_db: int = config.top_db
+    normalize: bool = config.normalize
 
     output_directory.mkdir(exist_ok=True)
     save_arguments(config, output_directory / 'arguments.json')
@@ -57,6 +66,8 @@ def main():
         sampling_rate=sampling_rate,
         frame_length=frame_length,
         hop_length=hop_length,
+        top_db=top_db,
+        normalize=normalize,
     )
 
     pool = multiprocessing.Pool()

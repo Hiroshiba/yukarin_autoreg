@@ -3,6 +3,7 @@ import glob
 import multiprocessing
 from functools import partial
 from pathlib import Path
+from typing import Optional, Dict
 
 import numpy as np
 import pyworld
@@ -21,6 +22,8 @@ def process(
         f0_floor: float,
         f0_ceil: float,
         with_vuv: bool,
+        input_statistics: Optional[Path],
+        target_statistics: Optional[Path],
 ):
     w = Wave.load(path, sampling_rate).wave.astype(np.float64)
 
@@ -32,6 +35,16 @@ def process(
         f0_ceil=f0_ceil,
     )
     f0 = pyworld.stonemask(w, f0, t, sampling_rate)
+
+    if input_statistics is not None:
+        stat: Dict = np.load(input_statistics, allow_pickle=True).item()
+        im, iv = stat['mean'], stat['var']
+
+        stat: Dict = np.load(target_statistics, allow_pickle=True).item()
+        tm, tv = stat['mean'], stat['var']
+
+        f0 = np.copy(f0)
+        f0[f0.nonzero()] = np.exp((tv / iv) * (np.log(f0[f0.nonzero()]) - im) + tm)
 
     vuv = f0 != 0
     f0_log = np.zeros_like(f0)
@@ -69,6 +82,8 @@ def main():
     parser.add_argument('--f0_floor', '-ff', type=int, default=71.0)
     parser.add_argument('--f0_ceil', '-fc', type=int, default=800.0)
     parser.add_argument('--with_vuv', '-wv', action='store_true')
+    parser.add_argument('--input_statistics', '-is', type=Path)
+    parser.add_argument('--target_statistics', '-ts', type=Path)
     config = parser.parse_args()
 
     input_glob = config.input_glob
@@ -78,6 +93,8 @@ def main():
     f0_floor: float = config.f0_floor
     f0_ceil: float = config.f0_ceil
     with_vuv: bool = config.with_vuv
+    input_statistics: Path = config.input_statistics
+    target_statistics: Path = config.target_statistics
 
     output_directory.mkdir(exist_ok=True)
     save_arguments(config, output_directory / 'arguments.json')
@@ -91,6 +108,8 @@ def main():
         f0_floor=f0_floor,
         f0_ceil=f0_ceil,
         with_vuv=with_vuv,
+        input_statistics=input_statistics,
+        target_statistics=target_statistics,
     )
 
     pool = multiprocessing.Pool()

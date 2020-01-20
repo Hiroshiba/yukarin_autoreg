@@ -17,10 +17,14 @@ def process(
         path: Path,
         output_directory: Path,
         pitch_range: Tuple[int, int],
+        pitch_shift: int,
         with_position: bool,
         rate: int,
 ):
     notes = MidiNoteReader(path).get_notes()
+    for note in notes:
+        note.pitch += pitch_shift
+
     array = MidiFeature(notes=notes, pitch_range=pitch_range, rate=rate).make_array(with_position)
 
     out = output_directory / (path.stem + '.npy')
@@ -32,6 +36,7 @@ def main():
     parser.add_argument('--input_glob', '-ig')
     parser.add_argument('--output_directory', '-od', type=Path)
     parser.add_argument('--pitch_range', '-pr', nargs=2, type=int, default=(53, 76))
+    parser.add_argument('--pitch_shift', '-ps', type=int, default=0)
     parser.add_argument('--without_position', '-wp', action='store_true')
     parser.add_argument('--rate', '-r', type=int, default=100)
     config = parser.parse_args()
@@ -39,6 +44,7 @@ def main():
     input_glob = config.input_glob
     output_directory: Path = config.output_directory
     pitch_range: Tuple[int, int] = config.pitch_range
+    pitch_shift: int = config.pitch_shift
     with_position: bool = not config.without_position
     rate: int = config.rate
 
@@ -50,6 +56,7 @@ def main():
         process,
         output_directory=output_directory,
         pitch_range=pitch_range,
+        pitch_shift=pitch_shift,
         with_position=with_position,
         rate=rate,
     )

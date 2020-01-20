@@ -30,6 +30,8 @@ class MidiFeature(object):
         array = np.zeros((len(self.notes), dim), dtype=np.float32)
 
         for i, note in enumerate(self.notes):
+            assert self.pitch_range[0] <= note.pitch <= self.pitch_range[1]
+
             feature = np.zeros(dim, dtype=bool)
             feature[note.pitch - self.pitch_range[0]] = True
             array[i] = feature

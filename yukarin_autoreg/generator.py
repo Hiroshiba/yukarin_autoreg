@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import chainer
 import numpy as np
@@ -70,7 +70,7 @@ class Generator(object):
 
     def generate(
             self,
-            time_length: float,
+            time_length: Optional[float],
             sampling_policy: SamplingPolicy,
             num_generate: int,
             coarse=None,

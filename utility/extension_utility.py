@@ -21,3 +21,7 @@ class TensorBoardReport(chainer.training.Extension):
                 v = chainer.cuda.to_cpu(v)
 
             self.writer.add_scalar(n, v, n_iter)
+
+    def finalize(self):
+        super().finalize()
+        self.writer.flush()
