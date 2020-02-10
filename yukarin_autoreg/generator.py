@@ -137,12 +137,13 @@ class Generator(object):
                 c[c < -1] = -1
                 c[c > 1] = 1
 
-            w = chainer.cuda.to_cpu(c)
+            w = c
             if self.output_categorical:
                 w = decode_single(w, bit=self.single_bit)
             w_list.append(w)
 
-        wave = np.array(w_list).T
+        wave = self.xp.stack(w_list).T
+        wave = chainer.cuda.to_cpu(wave)
         if self.mulaw:
             wave = decode_mulaw(wave, mu=2 ** self.single_bit)
 

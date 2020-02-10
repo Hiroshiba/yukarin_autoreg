@@ -21,6 +21,7 @@ parser.add_argument('--time_length', '-tl', type=float, default=1)
 parser.add_argument('--num_test', '-nt', type=int, default=5)
 parser.add_argument('--sampling_policy', '-sp', type=SamplingPolicy, default=SamplingPolicy.random)
 parser.add_argument('--val_local_glob', '-vlg')
+parser.add_argument('--val_speaker_num', '-vsn', type=int)
 parser.add_argument('--output_dir', '-o', type=Path, default='./output/')
 parser.add_argument('--gpu', type=int)
 arguments = parser.parse_args()
@@ -32,6 +33,7 @@ time_length: int = arguments.time_length
 num_test: int = arguments.num_test
 sampling_policy: SamplingPolicy = arguments.sampling_policy
 val_local_glob: str = arguments.val_local_glob
+val_speaker_num: Optional[int] = arguments.val_speaker_num
 output_dir: Path = arguments.output_dir
 gpu: int = arguments.gpu
 
@@ -122,7 +124,7 @@ def main():
         process_partial = partial(
             process_wo_context,
             generator=generator,
-            speaker_num=None,
+            speaker_num=val_speaker_num,
         )
         list(map(process_partial, local_paths))
 
