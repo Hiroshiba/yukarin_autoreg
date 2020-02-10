@@ -4,11 +4,11 @@ from typing import Optional
 import chainer
 import numpy
 import numpy as np
+from acoustic_feature_extractor.data.spectrogram import to_melcepstrum
+from acoustic_feature_extractor.data.wave import Wave
 from chainer import Chain
 
-from yukarin_autoreg.data import to_melcepstrum
 from yukarin_autoreg.generator import Generator, SamplingPolicy
-from yukarin_autoreg.wave import Wave
 
 _logdb_const = 10.0 / numpy.log(10.0) * numpy.sqrt(2.0)
 

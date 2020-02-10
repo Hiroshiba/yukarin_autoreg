@@ -3,10 +3,9 @@ import glob
 import multiprocessing
 from pathlib import Path
 
+from acoustic_feature_extractor.data.sampling_data import SamplingData
+from acoustic_feature_extractor.data.wave import Wave
 from tqdm import tqdm
-
-from yukarin_autoreg.sampling_data import SamplingData
-from yukarin_autoreg.wave import Wave
 
 
 def process(

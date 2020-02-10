@@ -23,23 +23,9 @@ def _make_hidden():
     (False, True, False, None),
     (True, False, False, None),
     (False, True, True, None),
-    (False, True, False, 'GlorotNormal'),
-    (False, True, False, 'HeNormal'),
-    (False, True, False, 'LeCunNormal'),
-    (False, True, False, 'Normal'),
     (False, True, False, 'GlorotUniform'),
-    (False, True, False, 'HeUniform'),
-    (False, True, False, 'LeCunUniform'),
-    (False, True, False, 'Uniform'),
     (False, True, False, 'PossibleOrthogonal'),
-    (False, True, True, 'GlorotNormal'),
-    (False, True, True, 'HeNormal'),
-    (False, True, True, 'LeCunNormal'),
-    (False, True, True, 'Normal'),
     (False, True, True, 'GlorotUniform'),
-    (False, True, True, 'HeUniform'),
-    (False, True, True, 'LeCunUniform'),
-    (False, True, True, 'Uniform'),
     (False, True, True, 'PossibleOrthogonal'),
 ])
 class TestWaveRNN(unittest.TestCase):
@@ -124,7 +110,8 @@ class TestWaveRNN(unittest.TestCase):
     def test_forward_one(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=self.s_one).data
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
         wave_rnn.forward_one(
             self.x_one[:, 0],
             l_one[:, 0],
@@ -134,7 +121,8 @@ class TestWaveRNN(unittest.TestCase):
     def test_batchsize1_forward(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=self.s_one).data
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=s_one).data
 
         oa, ha = wave_rnn.forward_rnn(
             x_array=self.x_array,
@@ -154,7 +142,8 @@ class TestWaveRNN(unittest.TestCase):
     def test_batchsize1_forward_one(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=self.s_one).data
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
 
         oa, ha = wave_rnn.forward_one(
             self.x_one[:, 0],
@@ -182,7 +171,8 @@ class TestWaveRNN(unittest.TestCase):
             hidden=hidden,
         )
 
-        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=self.s_one).data
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=s_one).data
         ob, hb = wave_rnn.forward_rnn(
             x_array=self.x_array[:, :-1],
             l_array=l_array[:, 1:],
@@ -195,7 +185,8 @@ class TestWaveRNN(unittest.TestCase):
     def test_same_forward_rnn_and_forward_one(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
-        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=self.s_one).data
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=s_one).data
 
         oa, ha = wave_rnn.forward_rnn(
             x_array=self.x_array,
@@ -214,6 +205,6 @@ class TestWaveRNN(unittest.TestCase):
                 hb,
             )
 
-            np.testing.assert_equal(oa[:, :, i].data, ob.data)
+            np.testing.assert_allclose(oa[:, :, i].data, ob.data, atol=1e-6)
 
-        np.testing.assert_equal(ha.data, hb.data)
+        np.testing.assert_allclose(ha.data, hb.data, atol=1e-6)

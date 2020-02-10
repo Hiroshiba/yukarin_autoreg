@@ -142,6 +142,9 @@ class WaveRNN(chainer.Chain):
         """
         assert l_array.shape[2] == self.local_size, f'{l_array.shape[2]} {self.local_size}'
 
+        if self.with_speaker:
+            s_one = self.forward_speaker(s_one)
+
         l_array = self.forward_encode(l_array=l_array, s_one=s_one)  # (batch_size, N + pad, ?)
         if local_padding_size > 0:
             l_array = l_array[:, local_padding_size:-local_padding_size]  # (batch_size, N, ?)
@@ -169,7 +172,7 @@ class WaveRNN(chainer.Chain):
     ):
         """
         :param l_array: float (batch_size, lN, ?)
-        :param s_one: int (batch_size, )
+        :param s_one: int (batch_size, ?)
         :return:
             l_array: float (batch_size, N, ?)
         """
@@ -179,7 +182,6 @@ class WaveRNN(chainer.Chain):
         length = l_array.shape[1]  # lN
 
         if self.with_speaker:
-            s_one = self.speaker_embedder(s_one)  # shape: (batch_size, ?)
             s_one = F.expand_dims(s_one, axis=1)  # shape: (batch_size, 1, ?)
             s_array = F.repeat(s_one, length, axis=1)  # shape: (batch_size, lN, ?)
             l_array = F.concat((l_array, s_array), axis=2)  # (batch_size, lN, ?)

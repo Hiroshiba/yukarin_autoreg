@@ -4,13 +4,13 @@ from typing import List, Optional
 
 import chainer
 import numpy as np
+from acoustic_feature_extractor.data.wave import Wave
 from chainer import cuda
 
 from yukarin_autoreg.config import Config, ModelConfig
 from yukarin_autoreg.data import decode_single, decode_mulaw, encode_single
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.network.wave_rnn import WaveRNN
-from yukarin_autoreg.wave import Wave
 
 
 class SamplingPolicy(str, Enum):
@@ -95,7 +95,8 @@ class Generator(object):
 
         if self.model.with_local:
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                local_array = self.model.forward_encode(l_array=local_array, s_one=speaker_nums)
+                s_one = self.model.forward_speaker(speaker_nums)
+                local_array = self.model.forward_encode(l_array=local_array, s_one=s_one)
 
         w_list = []
 

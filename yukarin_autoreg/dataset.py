@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import List, NamedTuple, Union, Dict
 
 import numpy as np
+from acoustic_feature_extractor.data.sampling_data import SamplingData
+from acoustic_feature_extractor.data.wave import Wave
 from chainer.dataset import DatasetMixin
 from chainer.datasets import ConcatenatedDataset
 
 from yukarin_autoreg.config import DatasetConfig
 from yukarin_autoreg.data import encode_16bit, encode_single, decode_single, encode_mulaw
-from yukarin_autoreg.sampling_data import SamplingData
-from yukarin_autoreg.wave import Wave
 
 
 class Input(NamedTuple):

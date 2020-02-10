@@ -52,7 +52,7 @@ class TestGenerator(unittest.TestCase):
         for sampling_policy in SamplingPolicy.__members__.values():
             with self.subTest(sampling_policy=sampling_policy):
                 waves = generator.generate(
-                    time_length=0.3,
+                    time_length=0.1,
                     sampling_policy=sampling_policy,
                     num_generate=num_generate,
                     speaker_nums=list(range(num_generate)) if speaker_size > 0 else None,

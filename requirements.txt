@@ -9,3 +9,4 @@ retry
 tensorboardX
 parameterized
 optuna
+git+https://github.com/Hiroshiba/acoustic_feature_extractor

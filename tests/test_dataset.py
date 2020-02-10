@@ -1,10 +1,10 @@
 import unittest
 
 import numpy as np
+from acoustic_feature_extractor.data.sampling_data import SamplingData
+from acoustic_feature_extractor.data.wave import Wave
 
 from yukarin_autoreg.dataset import BaseWaveDataset, Input, WavesDataset
-from yukarin_autoreg.sampling_data import SamplingData
-from yukarin_autoreg.wave import Wave
 
 batch_size = 2
 length = 3
@@ -26,7 +26,12 @@ class TestBaseWaveDataset(unittest.TestCase):
                 scale = sampling_rate // local_sampling_rate
 
                 wave_data = Wave(
-                    wave=np.linspace(0, sampling_rate * time_length, sampling_rate * time_length, endpoint=False),
+                    wave=np.linspace(
+                        0,
+                        int(sampling_rate * time_length),
+                        int(sampling_rate * time_length),
+                        endpoint=False,
+                    ),
                     sampling_rate=sampling_rate,
                 )
                 silence_data = SamplingData(
@@ -34,7 +39,12 @@ class TestBaseWaveDataset(unittest.TestCase):
                     rate=sampling_rate,
                 )
                 local_data = SamplingData(
-                    array=np.linspace(0, sampling_rate * time_length, local_sampling_rate * time_length, endpoint=False),
+                    array=np.linspace(
+                        0,
+                        int(sampling_rate * time_length),
+                        int(local_sampling_rate * time_length),
+                        endpoint=False,
+                    ),
                     rate=local_sampling_rate,
                 )
 
@@ -69,7 +79,12 @@ class TestBaseWaveDataset(unittest.TestCase):
                 scale = sampling_rate // local_sampling_rate
 
                 wave_data = Wave(
-                    wave=np.linspace(0, sampling_rate * time_length, sampling_rate * time_length, endpoint=False),
+                    wave=np.linspace(
+                        0,
+                        int(sampling_rate * time_length),
+                        int(sampling_rate * time_length),
+                        endpoint=False,
+                    ),
                     sampling_rate=sampling_rate,
                 )
                 silence_data = SamplingData(
@@ -77,7 +92,12 @@ class TestBaseWaveDataset(unittest.TestCase):
                     rate=sampling_rate,
                 )
                 local_data = SamplingData(
-                    array=np.linspace(0, sampling_rate * time_length, local_sampling_rate * time_length, endpoint=False),
+                    array=np.linspace(
+                        0,
+                        int(sampling_rate * time_length),
+                        int(local_sampling_rate * time_length),
+                        endpoint=False,
+                    ),
                     rate=local_sampling_rate,
                 )
                 for _ in range(10000):

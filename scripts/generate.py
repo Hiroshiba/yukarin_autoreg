@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+from acoustic_feature_extractor.data.sampling_data import SamplingData
 
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.dataset import WavesDataset, SpeakerWavesDataset
 from yukarin_autoreg.generator import Generator, SamplingPolicy
-from yukarin_autoreg.sampling_data import SamplingData
 from yukarin_autoreg.utility.json_utility import save_arguments
 
 parser = argparse.ArgumentParser()

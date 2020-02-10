@@ -6,13 +6,13 @@ from pathlib import Path
 import chainer
 import matplotlib.pyplot as plt
 import numpy as np
+from acoustic_feature_extractor.data.sampling_data import SamplingData
+from acoustic_feature_extractor.data.wave import Wave
 from chainer import cuda
 
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.data import encode_16bit, decode_single
 from yukarin_autoreg.model import create_predictor
-from yukarin_autoreg.sampling_data import SamplingData
-from yukarin_autoreg.wave import Wave
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', '-md', type=Path)
