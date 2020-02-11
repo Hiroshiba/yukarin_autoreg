@@ -67,32 +67,46 @@ class Generator(object):
             sampling_policy: SamplingPolicy,
             num_generate: int,
             coarse=None,
-            local_array: np.ndarray = None,
-            speaker_nums: List[int] = None,
+            local_array1: np.ndarray = None,
+            local_array2: np.ndarray = None,
+            speaker_nums1: List[int] = None,
+            speaker_nums2: List[int] = None,
+            morph_rates: List[float] = None,
             hidden_coarse=None,
     ):
         assert coarse is None or len(coarse) == num_generate
-        assert local_array is None or len(local_array) == num_generate
-        assert speaker_nums is None or len(speaker_nums) == num_generate
+        assert local_array1 is None or len(local_array1) == num_generate
+        assert local_array2 is None or len(local_array2) == num_generate
+        assert speaker_nums1 is None or len(speaker_nums1) == num_generate
+        assert speaker_nums2 is None or len(speaker_nums2) == num_generate
         assert hidden_coarse is None or len(hidden_coarse) == num_generate
         assert sampling_policy == SamplingPolicy.random
 
         length = int(self.sampling_rate * time_length)
 
-        if local_array is None:
-            local_array = self.xp.empty((num_generate, length, 0), dtype=np.float32)
+        if local_array1 is None:
+            local_array1 = self.xp.empty((num_generate, length, 0), dtype=np.float32)
+            local_array2 = self.xp.empty((num_generate, length, 0), dtype=np.float32)
         else:
-            local_array = self.xp.asarray(local_array)
+            local_array1 = self.xp.asarray(local_array1)
+            local_array2 = self.xp.asarray(local_array2)
 
-        if speaker_nums is not None:
-            speaker_nums = self.xp.asarray(speaker_nums).reshape((-1,))
+        if speaker_nums1 is not None:
+            speaker_nums1 = self.xp.asarray(speaker_nums1).reshape((-1,))
+            speaker_nums2 = self.xp.asarray(speaker_nums2).reshape((-1,))
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                s_one = self.model.forward_speaker(speaker_nums).data
-        else:
-            s_one = None
+                s_one1 = self.model.forward_speaker(speaker_nums1).data
+                s_one2 = self.model.forward_speaker(speaker_nums2).data
+
+        morph_rates = self.xp.array(morph_rates, dtype=np.float32)
 
         if self.model.with_local:
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+                morph_rates = morph_rates.reshape((-1, 1))
+                s_one = s_one1 * morph_rates + s_one2 * (1 - morph_rates)
+
+                morph_rates = morph_rates.reshape((-1, 1, 1))
+                local_array = local_array1 * morph_rates + local_array2 * (1 - morph_rates)
                 local_array = self.model.forward_encode(l_array=local_array, s_one=s_one).data
 
         if coarse is None:
