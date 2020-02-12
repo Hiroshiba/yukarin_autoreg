@@ -1,12 +1,12 @@
 import argparse
 import glob
 import re
-from functools import partial
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
 from acoustic_feature_extractor.data.sampling_data import SamplingData
+from more_itertools import chunked
 
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.dataset import WavesDataset, SpeakerWavesDataset
@@ -57,18 +57,24 @@ def _get_predictor_model_path(
     return model_path
 
 
-def process_wo_context(local_path: Path, speaker_num: Optional[int], generator: Generator, postfix='_woc'):
+def process_wo_context(
+        local_paths: Sequence[Path],
+        speaker_nums: Optional[Sequence[int]],
+        generator: Generator,
+        postfix='_woc',
+):
     try:
-        l_data = SamplingData.load(local_path)
-        l = np.expand_dims(l_data.array[:int((time_length + 5) * l_data.rate)], axis=0)
+        local_datas = [SamplingData.load(local_path) for local_path in local_paths]
+        local_arrays = [local_data.array[:int((time_length + 5) * local_data.rate)] for local_data in local_datas]
         waves = generator.generate(
             time_length=time_length,
             sampling_policy=sampling_policy,
-            num_generate=1,
-            local_array=l,
-            speaker_nums=[speaker_num] if speaker_num is not None else None,
+            num_generate=len(local_arrays),
+            local_array=np.stack(local_arrays),
+            speaker_nums=speaker_nums,
         )
-        waves[0].save(output_dir / (local_path.stem + postfix + '.wav'))
+        for wave, local_path in zip(waves, local_paths):
+            wave.save(output_dir / (local_path.stem + postfix + '.wav'))
     except:
         import traceback
         traceback.print_exc()
@@ -91,6 +97,7 @@ def main():
     )
     print(f'Loaded generator "{model_path}"')
 
+    batchsize = config.train.batchsize
     generator = Generator(
         config=config,
         model=model,
@@ -111,22 +118,23 @@ def main():
         raise ValueError(dataset)
 
     # random
-    for local_path, speaker_num in zip(local_paths, speaker_nums):
+    for local_path, speaker_num in zip(chunked(local_paths, batchsize), chunked(speaker_nums, batchsize)):
         process_wo_context(
             generator=generator,
-            local_path=local_path,
-            speaker_num=speaker_num,
+            local_paths=local_path,
+            speaker_nums=speaker_num,
         )
 
     # validation
     if val_local_glob is not None:
         local_paths = sorted([Path(p) for p in glob.glob(val_local_glob)])
-        process_partial = partial(
-            process_wo_context,
-            generator=generator,
-            speaker_num=val_speaker_num,
-        )
-        list(map(process_partial, local_paths))
+        speaker_nums = [val_speaker_num] * len(local_paths)
+        for local_path, speaker_num in zip(chunked(local_paths, batchsize), chunked(speaker_nums, batchsize)):
+            process_wo_context(
+                generator=generator,
+                local_paths=local_path,
+                speaker_nums=speaker_num,
+            )
 
 
 if __name__ == '__main__':

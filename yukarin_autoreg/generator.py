@@ -6,6 +6,7 @@ import chainer
 import numpy as np
 from acoustic_feature_extractor.data.wave import Wave
 from chainer import cuda
+from tqdm import tqdm
 
 from yukarin_autoreg.config import Config, ModelConfig
 from yukarin_autoreg.data import decode_single, decode_mulaw, encode_single
@@ -108,7 +109,7 @@ class Generator(object):
             c = coarse
 
         hc = hidden_coarse
-        for i in range(length):
+        for i in tqdm(range(length), desc='generate'):
             if self.output_categorical and not self.input_categorical:
                 c = decode_single(c, bit=self.single_bit)
 
