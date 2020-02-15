@@ -5,6 +5,7 @@ from parameterized import parameterized_class
 
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 from yukarin_autoreg.utility.chainer_initializer_utility import get_weight_initializer
+from yukarin_autoreg.utility.forward_utility import fast_forward_one
 
 batch_size = 2
 length = 3
@@ -118,6 +119,29 @@ class TestWaveRNN(unittest.TestCase):
             hidden=hidden,
         )
 
+    def test_fast_forward_one(self):
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
+        fast_forward_one(
+            prev_x=self.x_one[:, 0],
+            prev_l=l_one[:, 0],
+            hidden=hidden,
+            input_categorical=wave_rnn.input_categorical,
+            x_embedder_W=wave_rnn.x_embedder.W.data if wave_rnn.input_categorical else None,
+            gru_w=[v.data for v in wave_rnn.gru.ws[0]],
+            gru_b=[v.data for v in wave_rnn.gru.bs[0]],
+            gru_n_layers=wave_rnn.gru.n_layers,
+            gru_direction=wave_rnn.gru.direction,
+            gru_out_size=wave_rnn.gru.out_size,
+            O1_W=wave_rnn.O1.W.data,
+            O1_b=wave_rnn.O1.b.data,
+            O2_W=wave_rnn.O2.W.data,
+            O2_b=wave_rnn.O2.b.data,
+            xp=wave_rnn.xp,
+        )
+
     def test_batchsize1_forward(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
@@ -155,6 +179,51 @@ class TestWaveRNN(unittest.TestCase):
             self.x_one[:1, 0],
             l_one[:1, 0],
             hidden=hidden[:1],
+        )
+
+        np.testing.assert_allclose(oa.data[:1], ob.data, atol=1e-6)
+        np.testing.assert_allclose(ha.data[:1], hb.data, atol=1e-6)
+
+    def test_batchsize1_fast_forward_one(self):
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
+
+        oa, ha = fast_forward_one(
+            prev_x=self.x_one[:, 0],
+            prev_l=l_one[:, 0],
+            hidden=hidden,
+            input_categorical=wave_rnn.input_categorical,
+            x_embedder_W=wave_rnn.x_embedder.W.data if wave_rnn.input_categorical else None,
+            gru_w=[v.data for v in wave_rnn.gru.ws[0]],
+            gru_b=[v.data for v in wave_rnn.gru.bs[0]],
+            gru_n_layers=wave_rnn.gru.n_layers,
+            gru_direction=wave_rnn.gru.direction,
+            gru_out_size=wave_rnn.gru.out_size,
+            O1_W=wave_rnn.O1.W.data,
+            O1_b=wave_rnn.O1.b.data,
+            O2_W=wave_rnn.O2.W.data,
+            O2_b=wave_rnn.O2.b.data,
+            xp=wave_rnn.xp,
+        )
+
+        ob, hb = fast_forward_one(
+            prev_x=self.x_one[:1, 0],
+            prev_l=l_one[:1, 0],
+            hidden=hidden[:1],
+            input_categorical=wave_rnn.input_categorical,
+            x_embedder_W=wave_rnn.x_embedder.W.data if wave_rnn.input_categorical else None,
+            gru_w=[v.data for v in wave_rnn.gru.ws[0]],
+            gru_b=[v.data for v in wave_rnn.gru.bs[0]],
+            gru_n_layers=wave_rnn.gru.n_layers,
+            gru_direction=wave_rnn.gru.direction,
+            gru_out_size=wave_rnn.gru.out_size,
+            O1_W=wave_rnn.O1.W.data,
+            O1_b=wave_rnn.O1.b.data,
+            O2_W=wave_rnn.O2.W.data,
+            O2_b=wave_rnn.O2.b.data,
+            xp=wave_rnn.xp,
         )
 
         np.testing.assert_allclose(oa.data[:1], ob.data, atol=1e-6)
@@ -204,6 +273,53 @@ class TestWaveRNN(unittest.TestCase):
                 l[:, 0],
                 hb,
             )
+
+            np.testing.assert_allclose(oa[:, :, i].data, ob.data, atol=1e-6)
+
+        np.testing.assert_allclose(ha.data, hb.data, atol=1e-6)
+
+    def test_same_forward_rnn_and_fast_forward_one(self):
+        wave_rnn = self.wave_rnn
+        hidden = _make_hidden()
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=s_one).data
+
+        oa, ha = wave_rnn.forward_rnn(
+            x_array=self.x_array,
+            l_array=l_array,
+            hidden=hidden,
+        )
+
+        hb = hidden
+        for i, (x, l) in enumerate(zip(
+                np.split(self.x_array, length, axis=1),
+                np.split(l_array, length, axis=1),
+        )):
+            # TODO: 後で消す
+            ob_, hb_ = wave_rnn.forward_one(
+                x[:, 0],
+                l[:, 0],
+                hb,
+            )
+
+            ob, hb = fast_forward_one(
+                prev_x=x[:, 0],
+                prev_l=l[:, 0],
+                hidden=hb,
+                input_categorical=wave_rnn.input_categorical,
+                x_embedder_W=wave_rnn.x_embedder.W.data if wave_rnn.input_categorical else None,
+                gru_w=[v.data for v in wave_rnn.gru.ws[0]],
+                gru_b=[v.data for v in wave_rnn.gru.bs[0]],
+                gru_n_layers=wave_rnn.gru.n_layers,
+                gru_direction=wave_rnn.gru.direction,
+                gru_out_size=wave_rnn.gru.out_size,
+                O1_W=wave_rnn.O1.W.data,
+                O1_b=wave_rnn.O1.b.data,
+                O2_W=wave_rnn.O2.W.data,
+                O2_b=wave_rnn.O2.b.data,
+                xp=wave_rnn.xp,
+            )
+
 
             np.testing.assert_allclose(oa[:, :, i].data, ob.data, atol=1e-6)
 
