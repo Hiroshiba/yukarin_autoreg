@@ -295,13 +295,6 @@ class TestWaveRNN(unittest.TestCase):
                 np.split(self.x_array, length, axis=1),
                 np.split(l_array, length, axis=1),
         )):
-            # TODO: 後で消す
-            ob_, hb_ = wave_rnn.forward_one(
-                x[:, 0],
-                l[:, 0],
-                hb,
-            )
-
             ob, hb = fast_forward_one(
                 prev_x=x[:, 0],
                 prev_l=l[:, 0],
@@ -319,7 +312,6 @@ class TestWaveRNN(unittest.TestCase):
                 O2_b=wave_rnn.O2.b.data,
                 xp=wave_rnn.xp,
             )
-
 
             np.testing.assert_allclose(oa[:, :, i].data, ob.data, atol=1e-6)
 

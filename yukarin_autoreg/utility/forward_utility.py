@@ -44,18 +44,13 @@ def fast_forward_one(
         hx = xp.zeros(shape, dtype=dtype)
         hidden = hx[0]
 
-    x = prev_xl
-    h = hidden
-    w = gru_w
-    b = gru_b
+    xw = xp.concatenate([gru_w[0], gru_w[1], gru_w[2]], axis=0)
+    hw = xp.concatenate([gru_w[3], gru_w[4], gru_w[5]], axis=0)
+    xb = xp.concatenate([gru_b[0], gru_b[1], gru_b[2]], axis=0)
+    hb = xp.concatenate([gru_b[3], gru_b[4], gru_b[5]], axis=0)
 
-    xw = xp.concatenate([w[0], w[1], w[2]], axis=0)
-    hw = xp.concatenate([w[3], w[4], w[5]], axis=0)
-    xb = xp.concatenate([b[0], b[1], b[2]], axis=0)
-    hb = xp.concatenate([b[3], b[4], b[5]], axis=0)
-
-    gru_x = x.dot(xw.T) + xb
-    gru_h = h.dot(hw.T) + hb
+    gru_x = prev_xl.dot(xw.T) + xb
+    gru_h = hidden.dot(hw.T) + hb
 
     W_r_x, W_z_x, W_x = xp.split(gru_x, 3, axis=1)
     U_r_h, U_z_h, U_x = xp.split(gru_h, 3, axis=1)
@@ -64,9 +59,7 @@ def fast_forward_one(
     z = xp.tanh((W_z_x + U_z_h) * half) * half + half
 
     h_bar = xp.tanh(W_x + r * U_x)
-    h = z * hidden + (one - z) * h_bar
-
-    new_hidden = h
+    new_hidden = z * hidden + (one - z) * h_bar
 
     out_x = new_hidden.dot(O1_W.T) + O1_b
     out_x = xp.maximum(out_x, zero)
