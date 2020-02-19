@@ -29,8 +29,6 @@ class DatasetConfig(NamedTuple):
 class ModelConfig(NamedTuple):
     dual_softmax: bool
     bit_size: Optional[int]
-    gaussian: bool
-    input_categorical: bool
     hidden_size: int
     local_size: int
     conditioning_size: int
@@ -117,8 +115,6 @@ def create_from_dict(d: Dict[str, Any]):
         model=ModelConfig(
             hidden_size=d['model']['hidden_size'],
             bit_size=d['model']['bit_size'],
-            gaussian=d['model']['gaussian'],
-            input_categorical=d['model']['input_categorical'],
             dual_softmax=d['model']['dual_softmax'],
             local_size=d['model']['local_size'],
             conditioning_size=d['model']['conditioning_size'],
@@ -225,12 +221,6 @@ def backward_compatible(d: Dict):
     if 'num_train' not in d['dataset']:
         d['dataset']['num_train'] = None
 
-    if 'gaussian' not in d['model']:
-        d['model']['gaussian'] = False
-
-    if 'input_categorical' not in d['model']:
-        d['model']['input_categorical'] = True
-
     if 'weight_initializer' not in d['model']:
         d['model']['weight_initializer'] = None
 
@@ -260,6 +250,12 @@ def backward_compatible(d: Dict):
 
     if 'optuna' not in d['train']:
         d['train']['optuna'] = None
+
+    if 'input_categorical' in d['model']:
+        d['model'].pop('input_categorical')
+
+    if 'gaussian' not in d['model']:
+        d['model'].pop('gaussian')
 
 
 def assert_config(config: Config):

@@ -16,18 +16,15 @@ iteration = 3000
 
 class TestGenerator(unittest.TestCase):
     @parameterized.expand([
-        (True, False, 0, 1),
-        (False, True, 0, 1),
-        (True, False, 4, 1),
-        (True, False, 4, 4),
+        (0, 1),
+        (4, 1),
+        (4, 4),
     ])
-    def test_generator(self, input_categorical, gaussian, speaker_size, num_generate):
+    def test_generator(self, speaker_size, num_generate):
         config = get_test_config(
             to_double=to_double,
             bit=bit,
             mulaw=mulaw,
-            input_categorical=input_categorical,
-            gaussian=gaussian,
             speaker_size=speaker_size,
         )
 
@@ -37,8 +34,6 @@ class TestGenerator(unittest.TestCase):
                 to_double=to_double,
                 bit=bit,
                 mulaw=mulaw,
-                input_categorical=input_categorical,
-                gaussian=gaussian,
                 speaker_size=speaker_size,
                 iteration=iteration,
             ),
@@ -59,13 +54,12 @@ class TestGenerator(unittest.TestCase):
                 )
                 for num, wave in enumerate(waves):
                     wave.save(Path(
+                        '/tmp/'
                         f'test_generator_audio'
                         f'-sampling_policy={sampling_policy}'
                         f'-to_double={to_double}'
                         f'-bit={bit}'
                         f'-mulaw={mulaw}'
-                        f'-input_categorical={input_categorical}'
-                        f'-gaussian={gaussian}'
                         f'-speaker_size={speaker_size}'
                         f'-num={num}'
                         f'-iteration={iteration}'

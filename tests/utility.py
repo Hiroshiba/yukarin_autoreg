@@ -147,8 +147,6 @@ def get_test_config(
         to_double,
         bit,
         mulaw,
-        input_categorical,
-        gaussian,
         speaker_size,
 ):
     return namedtuple('Config', ['dataset', 'model'])(
@@ -162,8 +160,6 @@ def get_test_config(
         model=ModelConfig(
             dual_softmax=to_double,
             bit_size=bit,
-            gaussian=gaussian,
-            input_categorical=input_categorical,
             hidden_size=896,
             local_size=0,
             conditioning_size=128,
@@ -182,8 +178,6 @@ def get_test_model_path(
         to_double,
         bit,
         mulaw,
-        input_categorical,
-        gaussian,
         speaker_size,
         iteration,
 ):
@@ -192,8 +186,6 @@ def get_test_model_path(
         f'-to_double={to_double}'
         f'-bit={bit}'
         f'-mulaw={mulaw}'
-        f'-input_categorical={input_categorical}'
-        f'-gaussian={gaussian}'
         f'-speaker_size={speaker_size}'
         f'-iteration={iteration}.npz'
     )

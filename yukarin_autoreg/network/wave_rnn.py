@@ -52,8 +52,6 @@ class WaveRNN(chainer.Chain):
             self,
             dual_softmax: bool,
             bit_size: int,
-            gaussian: bool,
-            input_categorical: bool,
             conditioning_size: int,
             embedding_size: int,
             hidden_size: int,
@@ -70,8 +68,6 @@ class WaveRNN(chainer.Chain):
 
         self.dual_softmax = dual_softmax
         self.bit_size = bit_size
-        self.gaussian = gaussian
-        self.input_categorical = input_categorical
         self.local_size = local_size
         self.local_scale = local_scale
         self.speaker_size = speaker_size
@@ -94,9 +90,9 @@ class WaveRNN(chainer.Chain):
                 in_size=self.bins,
                 out_size=embedding_size,
                 initialW=weight_initializer,
-            ) if input_categorical else None
+            )
 
-            in_size = (embedding_size if input_categorical else 1) + (2 * conditioning_size if self.with_local else 0)
+            in_size = embedding_size + (2 * conditioning_size if self.with_local else 0)
             self.gru = ModifiedNStepGRU(
                 n_layers=1,
                 in_size=in_size,
@@ -105,7 +101,7 @@ class WaveRNN(chainer.Chain):
                 initialW=weight_initializer,
             )
             self.O1 = L.Linear(hidden_size, linear_hidden_size, initialW=weight_initializer)
-            self.O2 = L.Linear(linear_hidden_size, self.bins if not gaussian else 2, initialW=weight_initializer)
+            self.O2 = L.Linear(linear_hidden_size, self.bins, initialW=weight_initializer)
 
     @property
     def bins(self):
@@ -213,11 +209,8 @@ class WaveRNN(chainer.Chain):
         batch_size = x_array.shape[0]
         length = x_array.shape[1]  # N
 
-        if self.input_categorical:
-            x_array = x_array.reshape([batch_size * length, 1])  # (batchsize * N, 1)
-            x_array = self.x_embedder(x_array).reshape([batch_size, length, -1])  # (batch_size, N, ?)
-        else:
-            x_array = x_array.reshape([batch_size, length, 1])  # (batchsize, N, 1)
+        x_array = x_array.reshape([batch_size * length, 1])  # (batchsize * N, 1)
+        x_array = self.x_embedder(x_array).reshape([batch_size, length, -1])  # (batch_size, N, ?)
 
         xl_array = F.concat((x_array, l_array), axis=2)  # (batch_size, N, ?)
 
@@ -247,10 +240,7 @@ class WaveRNN(chainer.Chain):
         """
         batch_size = prev_x.shape[0]
 
-        if self.input_categorical:
-            prev_x = self.x_embedder(prev_x[:, np.newaxis]).reshape([batch_size, -1])  # (batch_size, ?)
-        else:
-            prev_x = prev_x.reshape([batch_size, 1])  # (batch_size, 1)
+        prev_x = self.x_embedder(prev_x[:, np.newaxis]).reshape([batch_size, -1])  # (batch_size, ?)
 
         prev_xl = F.concat((prev_x, prev_l), axis=1)  # (batch_size, ?)
 
@@ -268,17 +258,11 @@ class WaveRNN(chainer.Chain):
         xp = self.xp
 
         if maximum:
-            if not self.gaussian:
-                sampled = xp.argmax(F.softmax(dist, axis=1).data, axis=1)
-            else:
-                sampled = dist[:, 0].data
+            sampled = xp.argmax(F.softmax(dist, axis=1).data, axis=1)
         else:
-            if not self.gaussian:
-                prob_list = F.softmax(dist, axis=1)
-                sampled = xp.concatenate([
-                    xp.random.choice(self.bins, size=1, p=prob)
-                    for prob in prob_list.data
-                ])
-            else:
-                sampled = F.gaussian(mean=dist[:, 0], ln_var=dist[:, 1]).data
+            prob_list = F.softmax(dist, axis=1)
+            sampled = xp.concatenate([
+                xp.random.choice(self.bins, size=1, p=prob)
+                for prob in prob_list.data
+            ])
         return sampled

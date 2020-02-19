@@ -14,8 +14,6 @@ def create_predictor(config: ModelConfig):
     predictor = WaveRNN(
         dual_softmax=config.dual_softmax,
         bit_size=config.bit_size,
-        gaussian=config.gaussian,
-        input_categorical=config.input_categorical,
         conditioning_size=config.conditioning_size,
         embedding_size=config.embedding_size,
         hidden_size=config.hidden_size,
@@ -55,10 +53,7 @@ class Model(Chain):
     ):
         assert fine is None
 
-        if self.predictor.input_categorical:
-            x_array = encoded_coarse
-        else:
-            x_array = coarse
+        x_array = encoded_coarse
 
         out_c_array, _ = self.predictor(
             x_array=x_array,
@@ -70,12 +65,8 @@ class Model(Chain):
 
         losses = dict()
 
-        if not self.predictor.gaussian:
-            target_coarse = encoded_coarse[:, 1:]
-            nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')
-        else:
-            target_coarse = coarse[:, 1:]
-            nll_coarse = F.gaussian_nll(target_coarse, mean=out_c_array[:, 0], ln_var=out_c_array[:, 1], reduce='no')
+        target_coarse = encoded_coarse[:, 1:]
+        nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')
 
         if self.loss_config.eliminate_silence:
             nll_coarse = nll_coarse[~silence]
@@ -84,12 +75,8 @@ class Model(Chain):
         loss = nll_coarse
 
         if not self.loss_config.disable_fine:
-            if not self.predictor.gaussian:
-                target_fine = encoded_fine[:, 1:]
-                nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')
-            else:
-                target_fine = fine[:, 1:]
-                nll_fine = F.gaussian_nll(target_fine, mean=out_f_array[:, 0], ln_var=out_f_array[:, 1], reduce='no')
+            target_fine = encoded_fine[:, 1:]
+            nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')
 
             if self.loss_config.eliminate_silence:
                 nll_fine = nll_fine[~silence]

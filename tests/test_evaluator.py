@@ -17,15 +17,13 @@ iteration = 3000
 
 class TestEvaluator(unittest.TestCase):
     @parameterized.expand([
-        (True, False, 4, 4),
+        (4, 4),
     ])
-    def test_generate_evaluator(self, input_categorical, gaussian, speaker_size, num_generate):
+    def test_generate_evaluator(self, speaker_size, num_generate):
         config = get_test_config(
             to_double=to_double,
             bit=bit,
             mulaw=mulaw,
-            input_categorical=input_categorical,
-            gaussian=gaussian,
             speaker_size=speaker_size,
         )
 
@@ -35,8 +33,6 @@ class TestEvaluator(unittest.TestCase):
                 to_double=to_double,
                 bit=bit,
                 mulaw=mulaw,
-                input_categorical=input_categorical,
-                gaussian=gaussian,
                 speaker_size=speaker_size,
                 iteration=iteration,
             ),

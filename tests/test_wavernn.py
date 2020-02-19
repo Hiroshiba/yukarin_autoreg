@@ -19,28 +19,21 @@ def _make_hidden():
     return hidden
 
 
-@parameterized_class(('gaussian', 'input_categorical', 'with_speaker', 'weight_initializer'), [
-    (False, True, False, None),
-    (True, False, False, None),
-    (False, True, True, None),
-    (False, True, False, 'GlorotUniform'),
-    (False, True, False, 'PossibleOrthogonal'),
-    (False, True, True, 'GlorotUniform'),
-    (False, True, True, 'PossibleOrthogonal'),
+@parameterized_class(('with_speaker', 'weight_initializer'), [
+    (False, None),
+    (True, None),
+    (False, 'GlorotUniform'),
+    (False, 'PossibleOrthogonal'),
+    (True, 'GlorotUniform'),
+    (True, 'PossibleOrthogonal'),
 ])
 class TestWaveRNN(unittest.TestCase):
     def setUp(self):
-        gaussian = self.gaussian
-        input_categorical = self.input_categorical
         with_speaker = self.with_speaker
         weight_initializer = self.weight_initializer
 
-        if input_categorical:
-            self.x_array = np.random.randint(0, bit_size ** 2, size=[batch_size, length]).astype(np.int32)
-            self.x_one = np.random.randint(0, bit_size ** 2, size=[batch_size, 1]).astype(np.int32)
-        else:
-            self.x_array = np.random.rand(batch_size, length).astype(np.float32)
-            self.x_one = np.random.rand(batch_size, 1).astype(np.float32)
+        self.x_array = np.random.randint(0, bit_size ** 2, size=[batch_size, length]).astype(np.int32)
+        self.x_one = np.random.randint(0, bit_size ** 2, size=[batch_size, 1]).astype(np.int32)
 
         self.l_array = np.random.rand(batch_size, length, loal_size).astype(np.float32)
         self.l_one = np.random.rand(batch_size, 1, loal_size).astype(np.float32)
@@ -53,8 +46,6 @@ class TestWaveRNN(unittest.TestCase):
         wave_rnn = WaveRNN(
             dual_softmax=False,
             bit_size=bit_size,
-            gaussian=gaussian,
-            input_categorical=input_categorical,
             conditioning_size=7,
             embedding_size=32,
             hidden_size=hidden_size,

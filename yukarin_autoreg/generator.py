@@ -58,14 +58,6 @@ class Generator(object):
         return self.model.bit_size // (2 if self.dual_softmax else 1)
 
     @property
-    def input_categorical(self):
-        return self.model.input_categorical
-
-    @property
-    def output_categorical(self):
-        return not self.model.gaussian
-
-    @property
     def xp(self):
         return self.model.xp
 
@@ -103,16 +95,12 @@ class Generator(object):
 
         if coarse is None:
             c = self.xp.zeros([num_generate], dtype=np.float32)
-            if self.output_categorical:
-                c = encode_single(c, bit=self.single_bit)
+            c = encode_single(c, bit=self.single_bit)
         else:
             c = coarse
 
         hc = hidden_coarse
         for i in tqdm(range(length), desc='generate'):
-            if self.output_categorical and not self.input_categorical:
-                c = decode_single(c, bit=self.single_bit)
-
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
                 c, hc = self.model.forward_one(
                     prev_x=c,
@@ -135,13 +123,8 @@ class Generator(object):
                 raise ValueError(sampling_policy)
 
             c = self.model.sampling(c, maximum=not is_random)
-            if not self.output_categorical:
-                c[c < -1] = -1
-                c[c > 1] = 1
 
-            w = c
-            if self.output_categorical:
-                w = decode_single(w, bit=self.single_bit)
+            w = decode_single(c, bit=self.single_bit)
             w_list.append(w)
 
         wave = self.xp.stack(w_list).T
