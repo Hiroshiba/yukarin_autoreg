@@ -143,7 +143,7 @@ class ModifiedNStepGRU(ModifiedNStepGRUBase):
     use_bi_direction = False
 
     def rnn(self, *args):
-        from chainer.functions.connection import n_step_gru as rnn
+        from chainer.functions.rnn import n_step_gru as rnn
         return rnn.n_step_gru(*args)
 
     @property
@@ -155,7 +155,7 @@ class ModifiedNStepBiGRU(ModifiedNStepGRUBase):
     use_bi_direction = True
 
     def rnn(self, *args):
-        from chainer.functions.connection import n_step_gru as rnn
+        from chainer.functions.rnn import n_step_gru as rnn
         return rnn.n_step_bigru(*args)
 
     @property

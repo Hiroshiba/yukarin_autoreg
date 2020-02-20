@@ -5,7 +5,7 @@ import chainer.links as L
 import numpy as np
 from chainer import functions as F, Initializer
 from chainer.links import EmbedID
-from chainer.links.connection.n_step_rnn import NStepRNNBase
+from chainer.links.rnn.n_step_rnn import NStepRNNBase
 
 from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepBiGRU, ModifiedNStepGRU
 

@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 from parameterized import parameterized_class
 
+from yukarin_autoreg.network.fast_forward import fast_forward_one, get_fast_forward_params
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 from yukarin_autoreg.utility.chainer_initializer_utility import get_weight_initializer
 
@@ -109,6 +110,22 @@ class TestWaveRNN(unittest.TestCase):
             hidden=hidden,
         )
 
+    def test_fast_forward_one(self):
+        wave_rnn = self.wave_rnn
+        if not wave_rnn.input_categorical:
+            return
+
+        hidden = _make_hidden()
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
+        fast_forward_params = get_fast_forward_params(wave_rnn)
+        fast_forward_one(
+            prev_x=self.x_one[:, 0],
+            prev_l=l_one[:, 0],
+            hidden=hidden,
+            **fast_forward_params,
+        )
+
     def test_batchsize1_forward(self):
         wave_rnn = self.wave_rnn
         hidden = _make_hidden()
@@ -146,6 +163,33 @@ class TestWaveRNN(unittest.TestCase):
             self.x_one[:1, 0],
             l_one[:1, 0],
             hidden=hidden[:1],
+        )
+
+        np.testing.assert_allclose(oa.data[:1], ob.data, atol=1e-6)
+        np.testing.assert_allclose(ha.data[:1], hb.data, atol=1e-6)
+
+    def test_batchsize1_fast_forward_one(self):
+        wave_rnn = self.wave_rnn
+        if not wave_rnn.input_categorical:
+            return
+
+        hidden = _make_hidden()
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
+        fast_forward_params = get_fast_forward_params(wave_rnn)
+
+        oa, ha = fast_forward_one(
+            prev_x=self.x_one[:, 0],
+            prev_l=l_one[:, 0],
+            hidden=hidden,
+            **fast_forward_params,
+        )
+
+        ob, hb = fast_forward_one(
+            prev_x=self.x_one[:1, 0],
+            prev_l=l_one[:1, 0],
+            hidden=hidden[:1],
+            **fast_forward_params,
         )
 
         np.testing.assert_allclose(oa.data[:1], ob.data, atol=1e-6)
@@ -194,6 +238,38 @@ class TestWaveRNN(unittest.TestCase):
                 x[:, 0],
                 l[:, 0],
                 hb,
+            )
+
+            np.testing.assert_allclose(oa[:, :, i].data, ob.data, atol=1e-6)
+
+        np.testing.assert_allclose(ha.data, hb.data, atol=1e-6)
+
+    def test_same_forward_rnn_and_fast_forward_one(self):
+        wave_rnn = self.wave_rnn
+        if not wave_rnn.input_categorical:
+            return
+
+        hidden = _make_hidden()
+        s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
+        l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=s_one).data
+        fast_forward_params = get_fast_forward_params(wave_rnn)
+
+        oa, ha = wave_rnn.forward_rnn(
+            x_array=self.x_array,
+            l_array=l_array,
+            hidden=hidden,
+        )
+
+        hb = hidden
+        for i, (x, l) in enumerate(zip(
+                np.split(self.x_array, length, axis=1),
+                np.split(l_array, length, axis=1),
+        )):
+            ob, hb = fast_forward_one(
+                prev_x=x[:, 0],
+                prev_l=l[:, 0],
+                hidden=hb,
+                **fast_forward_params,
             )
 
             np.testing.assert_allclose(oa[:, :, i].data, ob.data, atol=1e-6)
