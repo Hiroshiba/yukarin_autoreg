@@ -79,3 +79,66 @@ def fast_forward_one(
     out_x = xp.maximum(out_x, zero)
     out_x = out_x.dot(O2_W) + O2_b  # (batch_size, ?)
     return out_x, new_hidden
+
+
+@numba.jit('float32[:, :](float32[:, :])')
+def _max_axis1_keepdims(array):
+    out = np.zeros((array.shape[0], 1), dtype=array.dtype)
+    for i in range(array.shape[0]):
+        out[i] = array[i].max()
+    return out
+
+
+@numba.jit
+def _random_choice_p(prob):
+    cumsum = np.cumsum(prob)
+    rand = np.random.random() * cumsum[-1]
+    return np.searchsorted(cumsum, rand, side="right")
+
+
+@numba.jit('int32[:](float32[:, :])')
+def fast_sampling(dist: np.ndarray):
+    dist -= _max_axis1_keepdims(dist)
+    dist = np.exp(dist)
+    dist /= _max_axis1_keepdims(dist)
+
+    sampled = np.zeros((dist.shape[0],), dtype=np.int32)
+    for i in range(dist.shape[0]):
+        sampled[i] = _random_choice_p(dist[i])
+
+    return sampled
+
+
+@numba.jit
+def fast_generate(
+        length: int,
+        x: ArrayLike,
+        l_array: ArrayLike,
+        h: ArrayLike,
+        x_embedder_W: ArrayLike,
+        gru_xw: ArrayLike,
+        gru_hw: ArrayLike,
+        gru_xb: ArrayLike,
+        gru_hb: ArrayLike,
+        O1_W: ArrayLike,
+        O1_b: ArrayLike,
+        O2_W: ArrayLike,
+        O2_b: ArrayLike,
+        xp=np,
+):
+    for i in range(length):
+        dist, h = fast_forward_one(
+            prev_x=x,
+            prev_l=l_array[:, i],
+            hidden=h,
+            x_embedder_W=x_embedder_W,
+            gru_xw=gru_xw,
+            gru_hw=gru_hw,
+            gru_xb=gru_xb,
+            gru_hb=gru_hb,
+            O1_W=O1_W,
+            O1_b=O1_b,
+            O2_W=O2_W,
+            O2_b=O2_b,
+        )
+        x = fast_sampling(dist)
