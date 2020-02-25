@@ -56,55 +56,99 @@ def fast_forward_one(
         O2_b: ArrayLike,
         xp=np,
 ):
-    half = xp.array(0.5, dtype=np.float32)
-    zero = xp.array(0.0, dtype=np.float32)
-    one = xp.array(1.0, dtype=np.float32)
+    half = xp.array(0.5, dtype=xp.float32)
+    zero = xp.array(0.0, dtype=xp.float32)
+    one = xp.array(1.0, dtype=xp.float32)
 
     prev_xl = xp.concatenate((x_embedder_W[prev_x], prev_l), axis=1)  # (batch_size, ?)
 
-    gru_x = prev_xl.dot(gru_xw) + gru_xb
-    gru_h = hidden.dot(gru_hw) + gru_hb
+    # gru_x = prev_xl.dot(gru_xw) + gru_xb
+    gru_x = prev_xl.dot(gru_xw)
+    gru_x += gru_xb
+
+    # gru_h = hidden.dot(gru_hw) + gru_hb
+    gru_h = hidden.dot(gru_hw)
+    gru_h += gru_hb
 
     size = gru_x.shape[1] // 3
     W_r_x, W_z_x, W_x = gru_x[:, :size], gru_x[:, size:size * 2], gru_x[:, size * 2:]
     U_r_h, U_z_h, U_x = gru_h[:, :size], gru_h[:, size:size * 2], gru_h[:, size * 2:]
 
-    r = xp.tanh((W_r_x + U_r_h) * half) * half + half
-    z = xp.tanh((W_z_x + U_z_h) * half) * half + half
+    # r = xp.tanh((W_r_x + U_r_h) * half) * half + half
+    r = W_r_x
+    r += U_r_h
+    r *= half
+    xp.tanh(r, r)
+    r *= half
+    r += half
 
-    h_bar = xp.tanh(W_x + r * U_x)
-    new_hidden = z * hidden + (one - z) * h_bar
+    # z = xp.tanh((W_z_x + U_z_h) * half) * half + half
+    z = W_z_x
+    z += U_z_h
+    z *= half
+    xp.tanh(z, z)
+    z *= half
+    z += half
 
-    out_x = new_hidden.dot(O1_W) + O1_b
-    out_x = xp.maximum(out_x, zero)
-    out_x = out_x.dot(O2_W) + O2_b  # (batch_size, ?)
+    # h_bar = xp.tanh(W_x + r * U_x)
+    r *= U_x
+    r += W_x
+    xp.tanh(r, r)
+    h_bar = r
+
+    # new_hidden = z * hidden + (one - z) * h_bar
+    hidden *= z
+    z *= -1
+    z += one
+    h_bar *= z
+    hidden += h_bar
+    new_hidden = hidden
+
+    # out_x = new_hidden.dot(O1_W) + O1_b
+    out_x = new_hidden.dot(O1_W)
+    out_x += O1_b
+
+    xp.maximum(out_x, zero, out_x)
+
+    # out_x = out_x.dot(O2_W) + O2_b
+    out_x = out_x.dot(O2_W)
+    out_x += O2_b
     return out_x, new_hidden
 
 
-@numba.jit('float32[:, :](float32[:, :])')
-def _max_axis1_keepdims(array):
-    out = np.zeros((array.shape[0], 1), dtype=array.dtype)
+@numba.jit
+def _max_axis1_keepdims(
+        array: ArrayLike,
+        xp=np,
+):
+    out = xp.zeros((array.shape[0], 1), dtype=array.dtype)
     for i in range(array.shape[0]):
         out[i] = array[i].max()
     return out
 
 
 @numba.jit
-def _random_choice_p(prob):
-    cumsum = np.cumsum(prob)
-    rand = np.random.random() * cumsum[-1]
-    return np.searchsorted(cumsum, rand, side="right")
+def _random_choice_p(
+        prob: ArrayLike,
+        xp=np,
+):
+    cumsum = xp.cumsum(prob)
+    rand = xp.random.random() * cumsum[-1]
+    return xp.searchsorted(cumsum, rand, side='right')
 
 
-@numba.jit('int32[:](float32[:, :])')
-def fast_sampling(dist: np.ndarray):
-    dist -= _max_axis1_keepdims(dist)
-    dist = np.exp(dist)
-    dist /= _max_axis1_keepdims(dist)
+@numba.jit
+def fast_sampling(
+        dist: ArrayLike,
+        xp=np,
+):
+    dist -= _max_axis1_keepdims(dist, xp=xp)
+    xp.exp(dist, dist)
+    dist /= _max_axis1_keepdims(dist, xp=xp)
 
-    sampled = np.zeros((dist.shape[0],), dtype=np.int32)
+    sampled = xp.zeros((dist.shape[0],), dtype=xp.int32)
     for i in range(dist.shape[0]):
-        sampled[i] = _random_choice_p(dist[i])
+        sampled[i] = _random_choice_p(dist[i], xp=xp)
 
     return sampled
 
@@ -140,5 +184,9 @@ def fast_generate(
             O1_b=O1_b,
             O2_W=O2_W,
             O2_b=O2_b,
+            xp=xp,
         )
-        x = fast_sampling(dist)
+        x = fast_sampling(
+            dist,
+            xp=xp,
+        )
