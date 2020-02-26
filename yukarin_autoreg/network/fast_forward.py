@@ -1,7 +1,6 @@
 from typing import Union
 
 import cupy as cp
-import numba
 import numpy as np
 
 from yukarin_autoreg.network.wave_rnn import WaveRNN
@@ -40,7 +39,6 @@ def get_fast_forward_params(model: WaveRNN):
     )
 
 
-@numba.jit
 def fast_forward_one(
         prev_x: ArrayLike,
         prev_l: ArrayLike,
@@ -116,18 +114,6 @@ def fast_forward_one(
     return out_x, new_hidden
 
 
-@numba.jit
-def _max_axis1_keepdims(
-        array: ArrayLike,
-        xp=np,
-):
-    out = xp.zeros((array.shape[0], 1), dtype=array.dtype)
-    for i in range(array.shape[0]):
-        out[i] = array[i].max()
-    return out
-
-
-@numba.jit
 def _random_choice_p(
         prob: ArrayLike,
         xp=np,
@@ -137,14 +123,13 @@ def _random_choice_p(
     return xp.searchsorted(cumsum, rand, side='right')
 
 
-@numba.jit
 def fast_sampling(
         dist: ArrayLike,
         xp=np,
 ):
-    dist -= _max_axis1_keepdims(dist, xp=xp)
+    dist -= xp.max(dist, axis=1, keepdims=True)
     xp.exp(dist, dist)
-    dist /= _max_axis1_keepdims(dist, xp=xp)
+    dist /= xp.sum(dist, axis=1, keepdims=True)
 
     sampled = xp.zeros((dist.shape[0],), dtype=xp.int32)
     for i in range(dist.shape[0]):
@@ -153,7 +138,6 @@ def fast_sampling(
     return sampled
 
 
-@numba.jit
 def fast_generate(
         length: int,
         x: ArrayLike,
