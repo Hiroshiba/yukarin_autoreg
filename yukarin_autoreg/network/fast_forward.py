@@ -54,10 +54,6 @@ def fast_forward_one(
         O2_b: ArrayLike,
         xp=np,
 ):
-    half = xp.array(0.5, dtype=xp.float32)
-    zero = xp.array(0.0, dtype=xp.float32)
-    one = xp.array(1.0, dtype=xp.float32)
-
     prev_xl = xp.concatenate((x_embedder_W[prev_x], prev_l), axis=1)  # (batch_size, ?)
 
     # gru_x = prev_xl.dot(gru_xw) + gru_xb
@@ -75,18 +71,18 @@ def fast_forward_one(
     # r = xp.tanh((W_r_x + U_r_h) * half) * half + half
     r = W_r_x
     r += U_r_h
-    r *= half
+    r *= 0.5
     xp.tanh(r, r)
-    r *= half
-    r += half
+    r *= 0.5
+    r += 0.5
 
     # z = xp.tanh((W_z_x + U_z_h) * half) * half + half
     z = W_z_x
     z += U_z_h
-    z *= half
+    z *= 0.5
     xp.tanh(z, z)
-    z *= half
-    z += half
+    z *= 0.5
+    z += 0.5
 
     # h_bar = xp.tanh(W_x + r * U_x)
     r *= U_x
@@ -97,7 +93,7 @@ def fast_forward_one(
     # new_hidden = z * hidden + (one - z) * h_bar
     hidden *= z
     z *= -1
-    z += one
+    z += 1
     h_bar *= z
     hidden += h_bar
     new_hidden = hidden
@@ -106,7 +102,7 @@ def fast_forward_one(
     out_x = new_hidden.dot(O1_W)
     out_x += O1_b
 
-    xp.maximum(out_x, zero, out_x)
+    cp.maximum(out_x, 0.0, out_x)
 
     # out_x = out_x.dot(O2_W) + O2_b
     out_x = out_x.dot(O2_W)
@@ -119,7 +115,7 @@ def _random_choice_p(
         xp=np,
 ):
     cumsum = xp.cumsum(prob, axis=1)
-    rand = xp.random.random(cumsum.shape[0], dtype=xp.float32) * cumsum[:, -1]
+    rand = xp.random.random(cumsum.shape[0], dtype=xp.float32)
     return xp.where(cumsum > rand[:, xp.newaxis], cumsum, xp.inf).argmin(axis=1)
 
 
