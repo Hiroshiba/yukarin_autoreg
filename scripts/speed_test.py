@@ -18,8 +18,6 @@ def main():
     config = ModelConfig(
         dual_softmax=False,
         bit_size=12,
-        gaussian=False,
-        input_categorical=True,
         conditioning_size=None,
         embedding_size=16,
         hidden_size=896,

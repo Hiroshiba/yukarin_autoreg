@@ -11,6 +11,7 @@ from tqdm import tqdm
 from yukarin_autoreg.config import Config, ModelConfig
 from yukarin_autoreg.data import decode_single, decode_mulaw, encode_single
 from yukarin_autoreg.model import create_predictor
+from yukarin_autoreg.network.fast_forward import get_fast_forward_params, fast_forward_one
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 
 
@@ -88,8 +89,8 @@ class Generator(object):
 
         if self.model.with_local:
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                s_one = self.model.forward_speaker(speaker_nums)
-                local_array = self.model.forward_encode(l_array=local_array, s_one=s_one)
+                s_one = self.model.forward_speaker(speaker_nums).data
+                local_array = self.model.forward_encode(l_array=local_array, s_one=s_one).data
 
         w_list = []
 
@@ -99,14 +100,20 @@ class Generator(object):
         else:
             c = coarse
 
+        fast_forward_params = get_fast_forward_params(self.model)
+        fast_forward_params['xp'] = self.model.xp
+
+        if hidden_coarse is None:
+            hidden_coarse = self.model.gru.init_hx(local_array)[0].data
+
         hc = hidden_coarse
         for i in tqdm(range(length), desc='generate'):
-            with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                c, hc = self.model.forward_one(
-                    prev_x=c,
-                    prev_l=local_array[:, i],
-                    hidden=hc,
-                )
+            c, hc = fast_forward_one(
+                prev_x=c,
+                prev_l=local_array[:, i],
+                hidden=hc,
+                **fast_forward_params,
+            )
 
             if sampling_policy == SamplingPolicy.random:
                 is_random = True

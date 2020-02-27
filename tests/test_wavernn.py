@@ -112,9 +112,6 @@ class TestWaveRNN(unittest.TestCase):
 
     def test_fast_forward_one(self):
         wave_rnn = self.wave_rnn
-        if not wave_rnn.input_categorical:
-            return
-
         hidden = _make_hidden()
         s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
         l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
@@ -170,9 +167,6 @@ class TestWaveRNN(unittest.TestCase):
 
     def test_batchsize1_fast_forward_one(self):
         wave_rnn = self.wave_rnn
-        if not wave_rnn.input_categorical:
-            return
-
         hidden = _make_hidden()
         s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
         l_one = wave_rnn.forward_encode(l_array=self.l_one, s_one=s_one).data
@@ -246,9 +240,6 @@ class TestWaveRNN(unittest.TestCase):
 
     def test_same_forward_rnn_and_fast_forward_one(self):
         wave_rnn = self.wave_rnn
-        if not wave_rnn.input_categorical:
-            return
-
         hidden = _make_hidden()
         s_one = self.s_one if not wave_rnn.with_speaker else wave_rnn.forward_speaker(self.s_one)
         l_array = wave_rnn.forward_encode(l_array=self.l_array, s_one=s_one).data

@@ -1,4 +1,4 @@
-FROM hiroshiba/hiho-deep-docker-base:chainer6-cuda9.0
+FROM hiroshiba/hiho-deep-docker-base:chainer7.1-cuda9.0
 
 RUN apt-get update && \
     apt-get install -y swig libsndfile1-dev libasound2-dev && \
