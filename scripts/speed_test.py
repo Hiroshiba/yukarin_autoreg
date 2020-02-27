@@ -5,7 +5,7 @@ import numpy as np
 
 from yukarin_autoreg.config import ModelConfig
 from yukarin_autoreg.model import create_predictor
-from yukarin_autoreg.network.fast_forward import get_fast_forward_params, fast_forward_one
+from yukarin_autoreg.network.fast_forward import get_fast_forward_params, fast_generate
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=-1)
@@ -84,15 +84,13 @@ def main():
             fast_forward_params['xp'] = xp
 
         start = time.time()
-        for i in range(length):
-            x, h = fast_forward_one(
-                prev_x=x,
-                prev_l=l_array[:, i],
-                hidden=h,
-                **fast_forward_params,
-            )
-
-            x = model.sampling(x, maximum=False)
+        fast_generate(
+            length=length,
+            x=x,
+            l_array=l_array,
+            h=h,
+            **fast_forward_params,
+        )
 
         elapsed = time.time() - start
         print(f'fast recurrent time: {elapsed}')
