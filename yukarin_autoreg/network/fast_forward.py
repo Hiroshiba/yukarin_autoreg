@@ -118,23 +118,21 @@ def _random_choice_p(
         prob: ArrayLike,
         xp=np,
 ):
-    cumsum = xp.cumsum(prob)
-    rand = xp.random.random() * cumsum[-1]
-    return xp.searchsorted(cumsum, rand, side='right')
+    cumsum = xp.cumsum(prob, axis=1)
+    rand = xp.random.random(cumsum.shape[0], dtype=xp.float32) * cumsum[:, -1]
+    return xp.where(cumsum > rand[:, xp.newaxis], cumsum, xp.inf).argmin(axis=1)
 
 
 def fast_sampling(
         dist: ArrayLike,
         xp=np,
 ):
+    cp.exp
     dist -= xp.max(dist, axis=1, keepdims=True)
     xp.exp(dist, dist)
     dist /= xp.sum(dist, axis=1, keepdims=True)
 
-    sampled = xp.zeros((dist.shape[0],), dtype=xp.int32)
-    for i in range(dist.shape[0]):
-        sampled[i] = _random_choice_p(dist[i], xp=xp)
-
+    sampled = _random_choice_p(dist, xp=xp)
     return sampled
 
 
