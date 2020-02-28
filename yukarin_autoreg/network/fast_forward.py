@@ -52,16 +52,22 @@ def fast_forward_one(
         O1_b: ArrayLike,
         O2_W: ArrayLike,
         O2_b: ArrayLike,
+        w_gru_x: ArrayLike,
+        w_gru_h: ArrayLike,
+        w_out_x1: ArrayLike,
+        w_out_x2: ArrayLike,
         xp=np,
 ):
     prev_xl = xp.concatenate((x_embedder_W[prev_x], prev_l), axis=1)  # (batch_size, ?)
 
     # gru_x = prev_xl.dot(gru_xw) + gru_xb
-    gru_x = prev_xl.dot(gru_xw)
+    gru_x = w_gru_x
+    prev_xl.dot(gru_xw, gru_x)
     gru_x += gru_xb
 
     # gru_h = hidden.dot(gru_hw) + gru_hb
-    gru_h = hidden.dot(gru_hw)
+    gru_h = w_gru_h
+    hidden.dot(gru_hw, gru_h)
     gru_h += gru_hb
 
     size = gru_x.shape[1] // 3
@@ -99,15 +105,17 @@ def fast_forward_one(
     new_hidden = hidden
 
     # out_x = new_hidden.dot(O1_W) + O1_b
-    out_x = new_hidden.dot(O1_W)
-    out_x += O1_b
+    out_x1 = w_out_x1
+    new_hidden.dot(O1_W, out_x1)
+    out_x1 += O1_b
 
-    cp.maximum(out_x, 0.0, out_x)
+    cp.maximum(out_x1, 0.0, out_x1)
 
     # out_x = out_x.dot(O2_W) + O2_b
-    out_x = out_x.dot(O2_W)
-    out_x += O2_b
-    return out_x, new_hidden
+    out_x2 = w_out_x2
+    out_x1.dot(O2_W, out_x2)
+    out_x2 += O2_b
+    return out_x2, new_hidden
 
 
 def _random_choice_p(
@@ -147,6 +155,12 @@ def fast_generate(
         O2_b: ArrayLike,
         xp=np,
 ):
+    batchsize = len(x)
+    w_gru_x = xp.empty((batchsize, len(gru_xb)), dtype=h.dtype)
+    w_gru_h = xp.empty((batchsize, len(gru_hb)), dtype=h.dtype)
+    w_out_x1 = xp.empty((batchsize, len(O1_b)), dtype=h.dtype)
+    w_out_x2 = xp.empty((batchsize, len(O2_b)), dtype=h.dtype)
+
     for i in range(length):
         dist, h = fast_forward_one(
             prev_x=x,
@@ -161,6 +175,10 @@ def fast_generate(
             O1_b=O1_b,
             O2_W=O2_W,
             O2_b=O2_b,
+            w_gru_x=w_gru_x,
+            w_gru_h=w_gru_h,
+            w_out_x1=w_out_x1,
+            w_out_x2=w_out_x2,
             xp=xp,
         )
         x = fast_sampling(
