@@ -2,6 +2,7 @@ from typing import Union
 
 import cupy as cp
 import numpy as np
+from chainer.backends import cuda as chainer_cuda
 
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 
@@ -118,27 +119,6 @@ def fast_forward_one(
     return out_x2, new_hidden
 
 
-def _random_choice_p(
-        prob: ArrayLike,
-        xp=np,
-):
-    cumsum = xp.cumsum(prob, axis=1)
-    rand = xp.random.random(cumsum.shape[0], dtype=xp.float32)
-    return xp.where(cumsum > rand[:, xp.newaxis], cumsum, xp.inf).argmin(axis=1)
-
-
-def fast_sampling(
-        dist: ArrayLike,
-        xp=np,
-):
-    dist -= xp.max(dist, axis=1, keepdims=True)
-    xp.exp(dist, dist)
-    dist /= xp.sum(dist, axis=1, keepdims=True)
-
-    sampled = _random_choice_p(dist, xp=xp)
-    return sampled
-
-
 def fast_generate(
         length: int,
         x: ArrayLike,
@@ -160,6 +140,7 @@ def fast_generate(
     w_gru_h = xp.empty((batchsize, len(gru_hb)), dtype=h.dtype)
     w_out_x1 = xp.empty((batchsize, len(O1_b)), dtype=h.dtype)
     w_out_x2 = xp.empty((batchsize, len(O2_b)), dtype=h.dtype)
+    w_cumsum = xp.empty((batchsize, len(O2_b)), dtype=h.dtype)
 
     for i in range(length):
         dist, h = fast_forward_one(
@@ -181,7 +162,11 @@ def fast_generate(
             w_out_x2=w_out_x2,
             xp=xp,
         )
-        x = fast_sampling(
-            dist,
-            xp=xp,
-        )
+
+        # softmax
+        dist = chainer_cuda.cudnn.softmax_forward(dist, 1, chainer_cuda.libcudnn.CUDNN_SOFTMAX_ACCURATE)
+
+        # sampling
+        xp.cumsum(dist, axis=1, out=w_cumsum)
+        rand = xp.random.random(w_cumsum.shape[0], dtype=xp.float32)[:, xp.newaxis]
+        x = xp.where(w_cumsum > rand, w_cumsum, xp.inf).argmin(axis=1)
