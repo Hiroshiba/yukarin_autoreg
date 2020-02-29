@@ -254,7 +254,7 @@ def backward_compatible(d: Dict):
     if 'input_categorical' in d['model']:
         d['model'].pop('input_categorical')
 
-    if 'gaussian' not in d['model']:
+    if 'gaussian' in d['model']:
         d['model'].pop('gaussian')
 
 

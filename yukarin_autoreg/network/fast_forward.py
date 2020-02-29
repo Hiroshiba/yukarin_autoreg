@@ -127,7 +127,6 @@ def fast_sampling(
         dist: ArrayLike,
         xp=np,
 ):
-    cp.exp
     dist -= xp.max(dist, axis=1, keepdims=True)
     xp.exp(dist, dist)
     dist /= xp.sum(dist, axis=1, keepdims=True)

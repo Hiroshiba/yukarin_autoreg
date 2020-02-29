@@ -260,9 +260,8 @@ class WaveRNN(chainer.Chain):
         if maximum:
             sampled = xp.argmax(F.softmax(dist, axis=1).data, axis=1)
         else:
-            prob_list = F.softmax(dist, axis=1)
-            sampled = xp.concatenate([
-                xp.random.choice(self.bins, size=1, p=prob)
-                for prob in prob_list.data
-            ])
+            prob = F.softmax(dist, axis=1).data
+            cumsum = xp.cumsum(prob, axis=1)
+            rand = xp.random.random(cumsum.shape[0], dtype=xp.float32) * cumsum[:, -1]
+            sampled = xp.where(cumsum > rand[:, xp.newaxis], cumsum, xp.inf).argmin(axis=1)
         return sampled
