@@ -30,7 +30,7 @@ def create_trainer(
     # model
     predictor = create_predictor(config.model)
     if config.train.trained_model is not None:
-        chainer.serializers.load_npz(config.train.trained_model, predictor)
+        chainer.serializers.load_npz(config.train.trained_model['predictor_path'], predictor)
     model = Model(loss_config=config.loss, predictor=predictor, local_padding_size=config.dataset.local_padding_size)
 
     model.to_gpu(config.train.gpu[0])
@@ -68,6 +68,8 @@ def create_trainer(
         return optimizer
 
     optimizer = create_optimizer(model)
+    if config.train.trained_model is not None:
+        chainer.serializers.load_npz(config.train.trained_model['optimizer_path'], optimizer)
 
     # updater
     if len(config.train.gpu) <= 1:
@@ -84,6 +86,8 @@ def create_trainer(
             converter=concat_optional,
             devices={'main' if i == 0 else f'gpu{gpu}': gpu for i, gpu in enumerate(config.train.gpu)},
         )
+    if config.train.trained_model is not None:
+        updater.iteration = optimizer.t
 
     # trainer
     output.mkdir()
@@ -96,10 +100,15 @@ def create_trainer(
     trainer = training.Trainer(updater, stop_trigger=trigger_stop, out=output)
     tb_writer = SummaryWriter(Path(output))
 
+    shift_ext = None
     if config.train.linear_shift is not None:
-        trainer.extend(extensions.LinearShift(**config.train.linear_shift))
+        shift_ext = extensions.LinearShift(**config.train.linear_shift)
     if config.train.step_shift is not None:
-        trainer.extend(extensions.StepShift(**config.train.step_shift))
+        shift_ext = extensions.StepShift(**config.train.step_shift)
+    if shift_ext is not None:
+        if config.train.trained_model is not None:
+            shift_ext._t = optimizer.t
+        trainer.extend(shift_ext)
 
     ext = extensions.Evaluator(test_iter, model, concat_optional, device=config.train.gpu[0])
     trainer.extend(ext, name='test', trigger=trigger_log)

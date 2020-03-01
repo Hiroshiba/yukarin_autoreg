@@ -57,7 +57,7 @@ class TrainConfig(NamedTuple):
     optimizer_gradient_clipping: float
     linear_shift: Dict[str, Any]
     step_shift: Dict[str, Any]
-    trained_model: Optional[str]
+    trained_model: Optional[Dict[str, Any]]
     optuna: Optional[Dict[str, Any]]
 
 
@@ -267,3 +267,6 @@ def assert_config(config: Config):
     else:
         assert not config.model.dual_softmax
         assert config.loss.disable_fine
+
+    if config.train.trained_model is not None:
+        assert {'predictor_path', 'optimizer_path'} <= set(config.train.trained_model.keys())
