@@ -17,6 +17,7 @@ class DatasetConfig(NamedTuple):
     mulaw: bool
     local_padding_size: int
     speaker_dict_path: Optional[str]
+    num_speaker: Optional[int]
     seed: int
     num_train: Optional[int]
     num_test: int
@@ -108,6 +109,7 @@ def create_from_dict(d: Dict[str, Any]):
             num_test=d['dataset']['num_test'],
             local_padding_size=d['dataset']['local_padding_size'],
             speaker_dict_path=d['dataset']['speaker_dict_path'],
+            num_speaker=d['dataset']['num_speaker'],
             num_times_evaluate=d['dataset']['num_times_evaluate'],
             time_length_evaluate=d['dataset']['time_length_evaluate'],
             local_padding_time_length_evaluate=d['dataset']['local_padding_time_length_evaluate'],
@@ -257,6 +259,9 @@ def backward_compatible(d: Dict):
     if 'gaussian' in d['model']:
         d['model'].pop('gaussian')
 
+    if 'num_speaker' not in d['dataset']:
+        d['dataset']['num_speaker'] = d['model']['speaker_size']
+
 
 def assert_config(config: Config):
     assert config.dataset.bit_size == config.model.bit_size
@@ -270,3 +275,6 @@ def assert_config(config: Config):
 
     if config.train.trained_model is not None:
         assert {'predictor_path', 'optimizer_path'} <= set(config.train.trained_model.keys())
+
+    if config.dataset.speaker_dict_path is not None:
+        assert config.dataset.num_speaker == config.model.speaker_size

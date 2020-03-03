@@ -263,6 +263,8 @@ def create(config: DatasetConfig):
 
     if config.speaker_dict_path is not None:
         fn_each_speaker: Dict[str, List[str]] = json.load(open(config.speaker_dict_path))
+        assert config.num_speaker == len(fn_each_speaker)
+
         speaker_nums = {
             fn: speaker_num
             for speaker_num, (_, fns) in enumerate(fn_each_speaker.items())
