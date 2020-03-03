@@ -86,10 +86,13 @@ class Generator(object):
 
         if speaker_nums is not None:
             speaker_nums = self.xp.asarray(speaker_nums).reshape((-1,))
+            with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+                s_one = self.model.forward_speaker(speaker_nums).data
+        else:
+            s_one = None
 
         if self.model.with_local:
             with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                s_one = self.model.forward_speaker(speaker_nums).data
                 local_array = self.model.forward_encode(l_array=local_array, s_one=s_one).data
 
         w_list = []

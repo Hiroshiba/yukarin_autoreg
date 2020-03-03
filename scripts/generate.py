@@ -65,7 +65,14 @@ def process_wo_context(
 ):
     try:
         local_datas = [SamplingData.load(local_path) for local_path in local_paths]
-        local_arrays = [local_data.array[:int((time_length + 5) * local_data.rate)] for local_data in local_datas]
+        size = int((time_length + 5) * local_datas[0].rate)
+        local_arrays = [
+            local_data.array
+            if len(local_data.array) >= size
+            else np.pad(local_data.array, ((0, size - len(local_data.array)), (0, 0)), mode='edge')
+            for local_data in local_datas
+        ]
+
         waves = generator.generate(
             time_length=time_length,
             sampling_policy=sampling_policy,
@@ -122,7 +129,7 @@ def main():
         process_wo_context(
             generator=generator,
             local_paths=local_path,
-            speaker_nums=speaker_num,
+            speaker_nums=speaker_num if speaker_num[0] is not None else None,
         )
 
     # validation
