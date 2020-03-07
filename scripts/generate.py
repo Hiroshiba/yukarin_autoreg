@@ -18,6 +18,7 @@ parser.add_argument('--model_dir', '-md', type=Path)
 parser.add_argument('--model_iteration', '-mi', type=int)
 parser.add_argument('--model_config', '-mc', type=Path)
 parser.add_argument('--time_length', '-tl', type=float, default=1)
+parser.add_argument('--input_batchsize', '-ib', type=int)
 parser.add_argument('--num_test', '-nt', type=int, default=5)
 parser.add_argument('--sampling_policy', '-sp', type=SamplingPolicy, default=SamplingPolicy.random)
 parser.add_argument('--val_local_glob', '-vlg')
@@ -30,6 +31,7 @@ model_dir: Path = arguments.model_dir
 model_iteration: int = arguments.model_iteration
 model_config: Path = arguments.model_config
 time_length: int = arguments.time_length
+input_batchsize: Optional[int] = arguments.input_batchsize
 num_test: int = arguments.num_test
 sampling_policy: SamplingPolicy = arguments.sampling_policy
 val_local_glob: str = arguments.val_local_glob
@@ -67,7 +69,7 @@ def process_wo_context(
         local_datas = [SamplingData.load(local_path) for local_path in local_paths]
         size = int((time_length + 5) * local_datas[0].rate)
         local_arrays = [
-            local_data.array
+            local_data.array[:size]
             if len(local_data.array) >= size
             else np.pad(local_data.array, ((0, size - len(local_data.array)), (0, 0)), mode='edge')
             for local_data in local_datas
@@ -104,7 +106,7 @@ def main():
     )
     print(f'Loaded generator "{model_path}"')
 
-    batchsize = config.train.batchsize
+    batchsize = input_batchsize if input_batchsize is not None else config.train.batchsize
     generator = Generator(
         config=config,
         model=model,
