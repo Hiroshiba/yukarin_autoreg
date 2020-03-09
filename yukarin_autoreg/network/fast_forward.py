@@ -40,6 +40,58 @@ def get_fast_forward_params(model: WaveRNN):
     )
 
 
+@cp.fuse()
+def calc_gru_r(W_r_x, U_r_h):
+    # r = xp.tanh((W_r_x + U_r_h) * half) * half + half
+    r = W_r_x
+    r += U_r_h
+    r *= 0.5
+    cp.tanh(r, r)
+    r *= 0.5
+    r += 0.5
+    return r
+
+
+@cp.fuse()
+def calc_gru_z(W_z_x, U_z_h):
+    # z = xp.tanh((W_z_x + U_z_h) * half) * half + half
+    z = W_z_x
+    z += U_z_h
+    z *= 0.5
+    cp.tanh(z, z)
+    z *= 0.5
+    z += 0.5
+    return z
+
+
+@cp.fuse()
+def calc_gru_h_bar(r, U_x, W_x):
+    # h_bar = xp.tanh(W_x + r * U_x)
+    r *= U_x
+    r += W_x
+    cp.tanh(r, r)
+    return r
+
+
+@cp.fuse()
+def calc_gru_hidden(hidden, z, h_bar):
+    # new_hidden = z * hidden + (one - z) * h_bar
+    hidden *= z
+    z *= -1
+    z += 1
+    h_bar *= z
+    hidden += h_bar
+    return hidden
+
+
+@cp.fuse()
+def gru_element_wise(hidden, W_r_x, W_z_x, W_x, U_r_h, U_z_h, U_x):
+    r = calc_gru_r(W_r_x, U_r_h)
+    z = calc_gru_z(W_z_x, U_z_h)
+    h_bar = calc_gru_h_bar(r, U_x, W_x)
+    return calc_gru_hidden(hidden, z, h_bar)
+
+
 def fast_forward_one(
         prev_x: ArrayLike,
         prev_l: ArrayLike,
@@ -74,36 +126,7 @@ def fast_forward_one(
     size = gru_x.shape[1] // 3
     W_r_x, W_z_x, W_x = gru_x[:, :size], gru_x[:, size:size * 2], gru_x[:, size * 2:]
     U_r_h, U_z_h, U_x = gru_h[:, :size], gru_h[:, size:size * 2], gru_h[:, size * 2:]
-
-    # r = xp.tanh((W_r_x + U_r_h) * half) * half + half
-    r = W_r_x
-    r += U_r_h
-    r *= 0.5
-    xp.tanh(r, r)
-    r *= 0.5
-    r += 0.5
-
-    # z = xp.tanh((W_z_x + U_z_h) * half) * half + half
-    z = W_z_x
-    z += U_z_h
-    z *= 0.5
-    xp.tanh(z, z)
-    z *= 0.5
-    z += 0.5
-
-    # h_bar = xp.tanh(W_x + r * U_x)
-    r *= U_x
-    r += W_x
-    xp.tanh(r, r)
-    h_bar = r
-
-    # new_hidden = z * hidden + (one - z) * h_bar
-    hidden *= z
-    z *= -1
-    z += 1
-    h_bar *= z
-    hidden += h_bar
-    new_hidden = hidden
+    new_hidden = gru_element_wise(hidden, W_r_x, W_z_x, W_x, U_r_h, U_z_h, U_x)
 
     # out_x = new_hidden.dot(O1_W) + O1_b
     out_x1 = w_out_x1
@@ -117,6 +140,11 @@ def fast_forward_one(
     out_x1.dot(O2_W, out_x2)
     out_x2 += O2_b
     return out_x2, new_hidden
+
+
+@cp.fuse()
+def _support_choice(dist, rand):
+    return cp.log(dist) + rand
 
 
 def fast_generate(
@@ -140,7 +168,9 @@ def fast_generate(
     w_gru_h = xp.empty((batchsize, len(gru_hb)), dtype=h.dtype)
     w_out_x1 = xp.empty((batchsize, len(O1_b)), dtype=h.dtype)
     w_out_x2 = xp.empty((batchsize, len(O2_b)), dtype=h.dtype)
-    w_cumsum = xp.empty((batchsize, len(O2_b)), dtype=h.dtype)
+
+    # random cache
+    random_cache = cp.random.gumbel(size=(length, batchsize, len(O2_b)), dtype=h.dtype)
 
     for i in range(length):
         dist, h = fast_forward_one(
@@ -167,6 +197,5 @@ def fast_generate(
         dist = chainer_cuda.cudnn.softmax_forward(dist, 1, chainer_cuda.libcudnn.CUDNN_SOFTMAX_ACCURATE)
 
         # sampling
-        xp.cumsum(dist, axis=1, out=w_cumsum)
-        rand = xp.random.random(w_cumsum.shape[0], dtype=xp.float32)[:, xp.newaxis]
-        x = xp.where(w_cumsum > rand, w_cumsum, xp.inf).argmin(axis=1)
+        # x = (cp.log(dist) + cp.random.gumbel(size=dist.shape, dtype=dist.dtype)).argmax(axis=1)
+        x = _support_choice(dist, random_cache[i]).argmax(axis=1)
