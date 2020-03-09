@@ -45,8 +45,8 @@ class TestEvaluator(unittest.TestCase):
 
         speaker_nums = list(range(num_generate)) if speaker_size > 0 else None
         waves = generator.generate(
-            time_length=0.3,
-            sampling_policy=SamplingPolicy.maximum,
+            time_length=1,
+            sampling_policy=SamplingPolicy.random,
             num_generate=num_generate,
             speaker_nums=speaker_nums,
         )
@@ -56,9 +56,9 @@ class TestEvaluator(unittest.TestCase):
 
         evaluator = GenerateEvaluator(
             generator=generator,
-            time_length=0.3,
+            time_length=1,
             local_padding_time_length=0,
-            sampling_policy=SamplingPolicy.maximum,
+            sampling_policy=SamplingPolicy.random,
         )
         scores = evaluator(
             wave=wave,
