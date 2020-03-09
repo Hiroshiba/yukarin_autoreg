@@ -1,12 +1,8 @@
-from typing import Union
-
 import cupy as cp
-import numpy as np
 from chainer.backends import cuda as chainer_cuda
+from tqdm import tqdm
 
 from yukarin_autoreg.network.wave_rnn import WaveRNN
-
-ArrayLike = Union[np.ndarray, cp.ndarray]
 
 
 def get_fast_forward_params(model: WaveRNN):
@@ -42,7 +38,7 @@ def get_fast_forward_params(model: WaveRNN):
 
 @cp.fuse()
 def calc_gru_r(W_r_x, U_r_h):
-    # r = xp.tanh((W_r_x + U_r_h) * half) * half + half
+    # r = cp.tanh((W_r_x + U_r_h) * half) * half + half
     r = W_r_x
     r += U_r_h
     r *= 0.5
@@ -54,7 +50,7 @@ def calc_gru_r(W_r_x, U_r_h):
 
 @cp.fuse()
 def calc_gru_z(W_z_x, U_z_h):
-    # z = xp.tanh((W_z_x + U_z_h) * half) * half + half
+    # z = cp.tanh((W_z_x + U_z_h) * half) * half + half
     z = W_z_x
     z += U_z_h
     z *= 0.5
@@ -66,7 +62,7 @@ def calc_gru_z(W_z_x, U_z_h):
 
 @cp.fuse()
 def calc_gru_h_bar(r, U_x, W_x):
-    # h_bar = xp.tanh(W_x + r * U_x)
+    # h_bar = cp.tanh(W_x + r * U_x)
     r *= U_x
     r += W_x
     cp.tanh(r, r)
@@ -93,25 +89,24 @@ def gru_element_wise(hidden, W_r_x, W_z_x, W_x, U_r_h, U_z_h, U_x):
 
 
 def fast_forward_one(
-        prev_x: ArrayLike,
-        prev_l: ArrayLike,
-        hidden: ArrayLike,
-        x_embedder_W: ArrayLike,
-        gru_xw: ArrayLike,
-        gru_hw: ArrayLike,
-        gru_xb: ArrayLike,
-        gru_hb: ArrayLike,
-        O1_W: ArrayLike,
-        O1_b: ArrayLike,
-        O2_W: ArrayLike,
-        O2_b: ArrayLike,
-        w_gru_x: ArrayLike,
-        w_gru_h: ArrayLike,
-        w_out_x1: ArrayLike,
-        w_out_x2: ArrayLike,
-        xp=np,
+        prev_x: cp.ndarray,
+        prev_l: cp.ndarray,
+        hidden: cp.ndarray,
+        x_embedder_W: cp.ndarray,
+        gru_xw: cp.ndarray,
+        gru_hw: cp.ndarray,
+        gru_xb: cp.ndarray,
+        gru_hb: cp.ndarray,
+        O1_W: cp.ndarray,
+        O1_b: cp.ndarray,
+        O2_W: cp.ndarray,
+        O2_b: cp.ndarray,
+        w_gru_x: cp.ndarray,
+        w_gru_h: cp.ndarray,
+        w_out_x1: cp.ndarray,
+        w_out_x2: cp.ndarray,
 ):
-    prev_xl = xp.concatenate((x_embedder_W[prev_x], prev_l), axis=1)  # (batch_size, ?)
+    prev_xl = cp.concatenate((x_embedder_W[prev_x], prev_l), axis=1)  # (batch_size, ?)
 
     # gru_x = prev_xl.dot(gru_xw) + gru_xb
     gru_x = w_gru_x
@@ -149,30 +144,30 @@ def _support_choice(dist, rand):
 
 def fast_generate(
         length: int,
-        x: ArrayLike,
-        l_array: ArrayLike,
-        h: ArrayLike,
-        x_embedder_W: ArrayLike,
-        gru_xw: ArrayLike,
-        gru_hw: ArrayLike,
-        gru_xb: ArrayLike,
-        gru_hb: ArrayLike,
-        O1_W: ArrayLike,
-        O1_b: ArrayLike,
-        O2_W: ArrayLike,
-        O2_b: ArrayLike,
-        xp=np,
+        x: cp.ndarray,
+        l_array: cp.ndarray,
+        h: cp.ndarray,
+        x_embedder_W: cp.ndarray,
+        gru_xw: cp.ndarray,
+        gru_hw: cp.ndarray,
+        gru_xb: cp.ndarray,
+        gru_hb: cp.ndarray,
+        O1_W: cp.ndarray,
+        O1_b: cp.ndarray,
+        O2_W: cp.ndarray,
+        O2_b: cp.ndarray,
 ):
     batchsize = len(x)
-    w_gru_x = xp.empty((batchsize, len(gru_xb)), dtype=h.dtype)
-    w_gru_h = xp.empty((batchsize, len(gru_hb)), dtype=h.dtype)
-    w_out_x1 = xp.empty((batchsize, len(O1_b)), dtype=h.dtype)
-    w_out_x2 = xp.empty((batchsize, len(O2_b)), dtype=h.dtype)
+    w_gru_x = cp.empty((batchsize, len(gru_xb)), dtype=h.dtype)
+    w_gru_h = cp.empty((batchsize, len(gru_hb)), dtype=h.dtype)
+    w_out_x1 = cp.empty((batchsize, len(O1_b)), dtype=h.dtype)
+    w_out_x2 = cp.empty((batchsize, len(O2_b)), dtype=h.dtype)
 
     # random cache
     random_cache = cp.random.gumbel(size=(length, batchsize, len(O2_b)), dtype=h.dtype)
 
-    for i in range(length):
+    output = []
+    for i in tqdm(range(length), desc='fast_generate'):
         dist, h = fast_forward_one(
             prev_x=x,
             prev_l=l_array[:, i],
@@ -190,12 +185,13 @@ def fast_generate(
             w_gru_h=w_gru_h,
             w_out_x1=w_out_x1,
             w_out_x2=w_out_x2,
-            xp=xp,
         )
 
         # softmax
         dist = chainer_cuda.cudnn.softmax_forward(dist, 1, chainer_cuda.libcudnn.CUDNN_SOFTMAX_ACCURATE)
 
         # sampling
-        # x = (cp.log(dist) + cp.random.gumbel(size=dist.shape, dtype=dist.dtype)).argmax(axis=1)
         x = _support_choice(dist, random_cache[i]).argmax(axis=1)
+        output.append(x)
+
+    return output
