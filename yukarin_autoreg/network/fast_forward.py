@@ -163,9 +163,6 @@ def fast_generate(
     w_out_x1 = cp.empty((batchsize, len(O1_b)), dtype=h.dtype)
     w_out_x2 = cp.empty((batchsize, len(O2_b)), dtype=h.dtype)
 
-    # random cache
-    random_cache = cp.random.gumbel(size=(length, batchsize, len(O2_b)), dtype=h.dtype)
-
     output = []
     for i in tqdm(range(length), desc='fast_generate'):
         dist, h = fast_forward_one(
@@ -191,7 +188,8 @@ def fast_generate(
         dist = chainer_cuda.cudnn.softmax_forward(dist, 1, chainer_cuda.libcudnn.CUDNN_SOFTMAX_ACCURATE)
 
         # sampling
-        x = _support_choice(dist, random_cache[i]).argmax(axis=1)
+        random = cp.random.gumbel(size=(batchsize, len(O2_b)), dtype=h.dtype)
+        x = _support_choice(dist, random).argmax(axis=1)
         output.append(x)
 
     return output
