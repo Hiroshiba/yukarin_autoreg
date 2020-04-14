@@ -13,8 +13,6 @@ length = 24000
 config = ModelConfig(
     dual_softmax=False,
     bit_size=10,
-    gaussian=False,
-    input_categorical=True,
     conditioning_size=80,
     embedding_size=16,
     hidden_size=896,
@@ -23,7 +21,7 @@ config = ModelConfig(
     local_scale=1,
     local_layer_num=1,
     speaker_size=0,
-    speaker_embedding_size=None,
+    speaker_embedding_size=0,
     weight_initializer=None,
 )
 # config = ModelConfig(
