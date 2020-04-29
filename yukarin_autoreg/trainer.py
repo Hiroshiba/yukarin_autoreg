@@ -116,7 +116,7 @@ def create_trainer(
     trainer.extend(ext, name='train', trigger=trigger_log)
 
     if test_eval_iter is not None:
-        generator = Generator(config=config, model=predictor)
+        generator = Generator(config=config, model=predictor, max_batch_size=config.train.batchsize)
         generate_evaluator = GenerateEvaluator(
             generator=generator,
             time_length=config.dataset.time_length_evaluate,

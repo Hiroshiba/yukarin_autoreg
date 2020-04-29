@@ -10,4 +10,5 @@ tensorboardX
 parameterized
 optuna
 more_itertools
+cython
 git+https://github.com/Hiroshiba/acoustic_feature_extractor
