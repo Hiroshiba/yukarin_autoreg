@@ -3,14 +3,16 @@ from pathlib import Path
 from typing import List, Optional
 
 import chainer
+import cupy as cp
 import numpy as np
 from acoustic_feature_extractor.data.wave import Wave
 from chainer import cuda
 
+import yukarin_autoreg_cpp
 from yukarin_autoreg.config import Config, ModelConfig
 from yukarin_autoreg.data import decode_single, decode_mulaw, encode_single
 from yukarin_autoreg.model import create_predictor
-from yukarin_autoreg.network.fast_forward import get_fast_forward_params, fast_generate
+from yukarin_autoreg.network.fast_forward import get_fast_forward_params
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 
 
@@ -20,19 +22,51 @@ class SamplingPolicy(str, Enum):
     # mix = 'mix'
 
 
+def to_numpy(a):
+    if isinstance(a, chainer.Variable):
+        a = a.data
+    if isinstance(a, cp.ndarray):
+        a = cp.asnumpy(a)
+    return np.ascontiguousarray(a)
+
+
 class Generator(object):
     def __init__(
             self,
             config: Config,
             model: WaveRNN,
+            max_batch_size: int = 10,
     ) -> None:
         self.config = config
         self.model = model
+        self.max_batch_size = max_batch_size
 
         self.sampling_rate = config.dataset.sampling_rate
         self.mulaw = config.dataset.mulaw
 
         assert not self.dual_softmax
+
+        # setup cpp inference
+        params = get_fast_forward_params(self.model)
+        local_size = config.model.conditioning_size * 2 if config.model.conditioning_size is not None else 0
+        yukarin_autoreg_cpp.initialize(
+            graph_length=1000,
+            max_batch_size=max_batch_size,
+            local_size=local_size,
+            hidden_size=config.model.hidden_size,
+            embedding_size=config.model.embedding_size,
+            linear_hidden_size=config.model.linear_hidden_size,
+            output_size=2 ** config.model.bit_size,
+            x_embedder_W=to_numpy(params['x_embedder_W']),
+            gru_xw=to_numpy(params['gru_xw']),
+            gru_xb=to_numpy(params['gru_xb']),
+            gru_hw=to_numpy(params['gru_hw']),
+            gru_hb=to_numpy(params['gru_hb']),
+            O1_W=to_numpy(params['O1_W']),
+            O1_b=to_numpy(params['O1_b']),
+            O2_W=to_numpy(params['O2_W']),
+            O2_b=to_numpy(params['O2_b']),
+        )
 
     @staticmethod
     def load_model(
@@ -71,6 +105,7 @@ class Generator(object):
             speaker_nums: List[int] = None,
             hidden_coarse=None,
     ):
+        assert num_generate <= self.max_batch_size
         assert coarse is None or len(coarse) == num_generate
         assert local_array is None or len(local_array) == num_generate
         assert speaker_nums is None or len(speaker_nums) == num_generate
@@ -101,23 +136,21 @@ class Generator(object):
         else:
             c = coarse
 
-        fast_forward_params = get_fast_forward_params(self.model)
-        # fast_forward_params['xp'] = self.model.xp
-
         if hidden_coarse is None:
             hidden_coarse = self.model.gru.init_hx(local_array)[0].data
 
-        output = fast_generate(
+        wave = np.zeros((length, num_generate), dtype=np.int32)
+        yukarin_autoreg_cpp.inference(
+            batch_size=num_generate,
             length=length,
-            x=c,
-            l_array=local_array,
-            h=hidden_coarse,
-            **fast_forward_params,
+            output=wave,
+            x=to_numpy(c),
+            l_array=to_numpy(self.xp.transpose(local_array, (1, 0, 2))),
+            hidden=to_numpy(hidden_coarse),
         )
 
-        wave = self.xp.stack(output).T
+        wave = wave.T
         wave = decode_single(wave, bit=self.single_bit)
-        wave = chainer.cuda.to_cpu(wave)
         if self.mulaw:
             wave = decode_mulaw(wave, mu=2 ** self.single_bit)
 
