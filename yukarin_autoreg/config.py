@@ -76,12 +76,12 @@ class Config(NamedTuple):
 
     def save_as_json(self, path):
         d = _namedtuple_to_dict(self)
-        json.dump(d, open(path, 'w'), indent=2, sort_keys=True, cls=JSONEncoder)
+        json.dump(d, open(path, "w"), indent=2, sort_keys=True, cls=JSONEncoder)
 
 
 def _namedtuple_to_dict(o: NamedTuple):
     return {
-        k: v if not hasattr(v, '_asdict') else _namedtuple_to_dict(v)
+        k: v if not hasattr(v, "_asdict") else _namedtuple_to_dict(v)
         for k, v in o._asdict().items()
     }
 
@@ -95,172 +95,171 @@ def create_from_dict(d: Dict[str, Any]):
 
     return Config(
         dataset=DatasetConfig(
-            sampling_rate=d['dataset']['sampling_rate'],
-            sampling_length=d['dataset']['sampling_length'],
-            input_wave_glob=d['dataset']['input_wave_glob'],
-            input_silence_glob=d['dataset']['input_silence_glob'],
-            input_local_glob=d['dataset']['input_local_glob'],
-            bit_size=d['dataset']['bit_size'],
-            gaussian_noise_sigma=d['dataset']['gaussian_noise_sigma'],
-            only_coarse=d['dataset']['only_coarse'],
-            mulaw=d['dataset']['mulaw'],
-            seed=d['dataset']['seed'],
-            num_train=d['dataset']['num_train'],
-            num_test=d['dataset']['num_test'],
-            local_padding_size=d['dataset']['local_padding_size'],
-            speaker_dict_path=d['dataset']['speaker_dict_path'],
-            num_speaker=d['dataset']['num_speaker'],
-            num_times_evaluate=d['dataset']['num_times_evaluate'],
-            time_length_evaluate=d['dataset']['time_length_evaluate'],
-            local_padding_time_length_evaluate=d['dataset']['local_padding_time_length_evaluate'],
+            sampling_rate=d["dataset"]["sampling_rate"],
+            sampling_length=d["dataset"]["sampling_length"],
+            input_wave_glob=d["dataset"]["input_wave_glob"],
+            input_silence_glob=d["dataset"]["input_silence_glob"],
+            input_local_glob=d["dataset"]["input_local_glob"],
+            bit_size=d["dataset"]["bit_size"],
+            gaussian_noise_sigma=d["dataset"]["gaussian_noise_sigma"],
+            only_coarse=d["dataset"]["only_coarse"],
+            mulaw=d["dataset"]["mulaw"],
+            seed=d["dataset"]["seed"],
+            num_train=d["dataset"]["num_train"],
+            num_test=d["dataset"]["num_test"],
+            local_padding_size=d["dataset"]["local_padding_size"],
+            speaker_dict_path=d["dataset"]["speaker_dict_path"],
+            num_speaker=d["dataset"]["num_speaker"],
+            num_times_evaluate=d["dataset"]["num_times_evaluate"],
+            time_length_evaluate=d["dataset"]["time_length_evaluate"],
+            local_padding_time_length_evaluate=d["dataset"][
+                "local_padding_time_length_evaluate"
+            ],
         ),
         model=ModelConfig(
-            hidden_size=d['model']['hidden_size'],
-            bit_size=d['model']['bit_size'],
-            dual_softmax=d['model']['dual_softmax'],
-            local_size=d['model']['local_size'],
-            conditioning_size=d['model']['conditioning_size'],
-            embedding_size=d['model']['embedding_size'],
-            linear_hidden_size=d['model']['linear_hidden_size'],
-            local_scale=d['model']['local_scale'],
-            local_layer_num=d['model']['local_layer_num'],
-            speaker_size=d['model']['speaker_size'],
-            speaker_embedding_size=d['model']['speaker_embedding_size'],
-            weight_initializer=d['model']['weight_initializer'],
+            hidden_size=d["model"]["hidden_size"],
+            bit_size=d["model"]["bit_size"],
+            dual_softmax=d["model"]["dual_softmax"],
+            local_size=d["model"]["local_size"],
+            conditioning_size=d["model"]["conditioning_size"],
+            embedding_size=d["model"]["embedding_size"],
+            linear_hidden_size=d["model"]["linear_hidden_size"],
+            local_scale=d["model"]["local_scale"],
+            local_layer_num=d["model"]["local_layer_num"],
+            speaker_size=d["model"]["speaker_size"],
+            speaker_embedding_size=d["model"]["speaker_embedding_size"],
+            weight_initializer=d["model"]["weight_initializer"],
         ),
         loss=LossConfig(
-            disable_fine=d['loss']['disable_fine'],
-            eliminate_silence=d['loss']['eliminate_silence'],
-            mean_silence=d['loss']['mean_silence'],
+            disable_fine=d["loss"]["disable_fine"],
+            eliminate_silence=d["loss"]["eliminate_silence"],
+            mean_silence=d["loss"]["mean_silence"],
         ),
         train=TrainConfig(
-            batchsize=d['train']['batchsize'],
-            gpu=d['train']['gpu'],
-            log_iteration=d['train']['log_iteration'],
-            snapshot_iteration=d['train']['snapshot_iteration'],
-            stop_iteration=d['train']['stop_iteration'],
-            optimizer=d['train']['optimizer'],
-            optimizer_gradient_clipping=d['train']['optimizer_gradient_clipping'],
-            linear_shift=d['train']['linear_shift'],
-            step_shift=d['train']['step_shift'],
-            trained_model=d['train']['trained_model'],
-            optuna=d['train']['optuna'],
+            batchsize=d["train"]["batchsize"],
+            gpu=d["train"]["gpu"],
+            log_iteration=d["train"]["log_iteration"],
+            snapshot_iteration=d["train"]["snapshot_iteration"],
+            stop_iteration=d["train"]["stop_iteration"],
+            optimizer=d["train"]["optimizer"],
+            optimizer_gradient_clipping=d["train"]["optimizer_gradient_clipping"],
+            linear_shift=d["train"]["linear_shift"],
+            step_shift=d["train"]["step_shift"],
+            trained_model=d["train"]["trained_model"],
+            optuna=d["train"]["optuna"],
         ),
-        project=ProjectConfig(
-            name=d['project']['name'],
-            tags=d['project']['tags'],
-        )
+        project=ProjectConfig(name=d["project"]["name"], tags=d["project"]["tags"],),
     )
 
 
 def backward_compatible(d: Dict):
-    if 'silence_top_db' not in d['dataset']:
-        d['dataset']['silence_top_db'] = None
+    if "silence_top_db" not in d["dataset"]:
+        d["dataset"]["silence_top_db"] = None
 
-    if 'clipping_range' not in d['dataset']:
-        d['dataset']['clipping_range'] = None
+    if "clipping_range" not in d["dataset"]:
+        d["dataset"]["clipping_range"] = None
 
-    if 'input_wave_glob' not in d['dataset']:
-        d['dataset']['input_wave_glob'] = d['dataset']['input_glob']
+    if "input_wave_glob" not in d["dataset"]:
+        d["dataset"]["input_wave_glob"] = d["dataset"]["input_glob"]
 
-    if 'input_silence_glob' not in d['dataset']:
-        d['dataset']['input_silence_glob'] = None
+    if "input_silence_glob" not in d["dataset"]:
+        d["dataset"]["input_silence_glob"] = None
 
-    if 'input_local_glob' not in d['dataset']:
-        d['dataset']['input_local_glob'] = None
+    if "input_local_glob" not in d["dataset"]:
+        d["dataset"]["input_local_glob"] = None
 
-    if 'local_size' not in d['model']:
-        d['model']['local_size'] = 0
+    if "local_size" not in d["model"]:
+        d["model"]["local_size"] = 0
 
-    if 'optimizer_gradient_clipping' not in d['train']:
-        d['train']['optimizer_gradient_clipping'] = None
+    if "optimizer_gradient_clipping" not in d["train"]:
+        d["train"]["optimizer_gradient_clipping"] = None
 
-    if 'linear_shift' not in d['train']:
-        d['train']['linear_shift'] = None
+    if "linear_shift" not in d["train"]:
+        d["train"]["linear_shift"] = None
 
-    if 'gaussian_noise_sigma' not in d['dataset']:
-        d['dataset']['gaussian_noise_sigma'] = 0.0
+    if "gaussian_noise_sigma" not in d["dataset"]:
+        d["dataset"]["gaussian_noise_sigma"] = 0.0
 
-    if 'trained_model' not in d['train']:
-        d['train']['trained_model'] = None
+    if "trained_model" not in d["train"]:
+        d["train"]["trained_model"] = None
 
-    if 'only_coarse' not in d['dataset']:
-        d['dataset']['only_coarse'] = False
+    if "only_coarse" not in d["dataset"]:
+        d["dataset"]["only_coarse"] = False
 
-    if 'dual_softmax' not in d['model']:
-        d['model']['dual_softmax'] = True
+    if "dual_softmax" not in d["model"]:
+        d["model"]["dual_softmax"] = True
 
-    if 'disable_fine' not in d['loss']:
-        d['loss']['disable_fine'] = False
+    if "disable_fine" not in d["loss"]:
+        d["loss"]["disable_fine"] = False
 
-    if 'mulaw' not in d['dataset']:
-        d['dataset']['mulaw'] = False
+    if "mulaw" not in d["dataset"]:
+        d["dataset"]["mulaw"] = False
 
-    if 'step_shift' not in d['train']:
-        d['train']['step_shift'] = None
+    if "step_shift" not in d["train"]:
+        d["train"]["step_shift"] = None
 
-    if 'eliminate_silence' not in d['loss']:
-        d['loss']['eliminate_silence'] = True
+    if "eliminate_silence" not in d["loss"]:
+        d["loss"]["eliminate_silence"] = True
 
-    if 'conditioning_size' not in d['model']:
-        d['model']['conditioning_size'] = None
+    if "conditioning_size" not in d["model"]:
+        d["model"]["conditioning_size"] = None
 
-    if 'embedding_size' not in d['model']:
-        d['model']['embedding_size'] = None
+    if "embedding_size" not in d["model"]:
+        d["model"]["embedding_size"] = None
 
-    if 'linear_hidden_size' not in d['model']:
-        d['model']['linear_hidden_size'] = None
+    if "linear_hidden_size" not in d["model"]:
+        d["model"]["linear_hidden_size"] = None
 
-    if 'local_scale' not in d['model']:
-        d['model']['local_scale'] = None
+    if "local_scale" not in d["model"]:
+        d["model"]["local_scale"] = None
 
-    if 'local_padding_size' not in d['dataset']:
-        d['dataset']['local_padding_size'] = 0
+    if "local_padding_size" not in d["dataset"]:
+        d["dataset"]["local_padding_size"] = 0
 
-    if 'local_layer_num' not in d['model']:
-        d['model']['local_layer_num'] = 2
+    if "local_layer_num" not in d["model"]:
+        d["model"]["local_layer_num"] = 2
 
-    if 'num_train' not in d['dataset']:
-        d['dataset']['num_train'] = None
+    if "num_train" not in d["dataset"]:
+        d["dataset"]["num_train"] = None
 
-    if 'weight_initializer' not in d['model']:
-        d['model']['weight_initializer'] = None
+    if "weight_initializer" not in d["model"]:
+        d["model"]["weight_initializer"] = None
 
-    if 'fix_contain_not_silence' not in d['dataset']:
-        d['dataset']['fix_contain_not_silence'] = False
+    if "fix_contain_not_silence" not in d["dataset"]:
+        d["dataset"]["fix_contain_not_silence"] = False
 
-    if 'mean_silence' not in d['loss']:
-        d['loss']['mean_silence'] = True
+    if "mean_silence" not in d["loss"]:
+        d["loss"]["mean_silence"] = True
 
-    if 'speaker_size' not in d['model']:
-        d['model']['speaker_size'] = 0
+    if "speaker_size" not in d["model"]:
+        d["model"]["speaker_size"] = 0
 
-    if 'speaker_embedding_size' not in d['model']:
-        d['model']['speaker_embedding_size'] = 0
+    if "speaker_embedding_size" not in d["model"]:
+        d["model"]["speaker_embedding_size"] = 0
 
-    if 'speaker_dict_path' not in d['dataset']:
-        d['dataset']['speaker_dict_path'] = None
+    if "speaker_dict_path" not in d["dataset"]:
+        d["dataset"]["speaker_dict_path"] = None
 
-    if 'num_times_evaluate' not in d['dataset']:
-        d['dataset']['num_times_evaluate'] = None
+    if "num_times_evaluate" not in d["dataset"]:
+        d["dataset"]["num_times_evaluate"] = None
 
-    if 'time_length_evaluate' not in d['dataset']:
-        d['dataset']['time_length_evaluate'] = None
+    if "time_length_evaluate" not in d["dataset"]:
+        d["dataset"]["time_length_evaluate"] = None
 
-    if 'local_padding_time_length_evaluate' not in d['dataset']:
-        d['dataset']['local_padding_time_length_evaluate'] = 0
+    if "local_padding_time_length_evaluate" not in d["dataset"]:
+        d["dataset"]["local_padding_time_length_evaluate"] = 0
 
-    if 'optuna' not in d['train']:
-        d['train']['optuna'] = None
+    if "optuna" not in d["train"]:
+        d["train"]["optuna"] = None
 
-    if 'input_categorical' in d['model']:
-        d['model'].pop('input_categorical')
+    if "input_categorical" in d["model"]:
+        d["model"].pop("input_categorical")
 
-    if 'gaussian' in d['model']:
-        d['model'].pop('gaussian')
+    if "gaussian" in d["model"]:
+        d["model"].pop("gaussian")
 
-    if 'num_speaker' not in d['dataset']:
-        d['dataset']['num_speaker'] = d['model']['speaker_size']
+    if "num_speaker" not in d["dataset"]:
+        d["dataset"]["num_speaker"] = d["model"]["speaker_size"]
 
 
 def assert_config(config: Config):
@@ -274,7 +273,9 @@ def assert_config(config: Config):
         assert config.loss.disable_fine
 
     if config.train.trained_model is not None:
-        assert {'predictor_path', 'optimizer_path'} <= set(config.train.trained_model.keys())
+        assert {"predictor_path", "optimizer_path"} <= set(
+            config.train.trained_model.keys()
+        )
 
     if config.dataset.speaker_dict_path is not None:
         assert config.dataset.num_speaker == config.model.speaker_size

@@ -30,10 +30,7 @@ def create_predictor(config: ModelConfig):
 
 class Model(Chain):
     def __init__(
-            self,
-            loss_config: LossConfig,
-            predictor: WaveRNN,
-            local_padding_size: int,
+        self, loss_config: LossConfig, predictor: WaveRNN, local_padding_size: int,
     ) -> None:
         super().__init__()
         self.loss_config = loss_config
@@ -42,14 +39,14 @@ class Model(Chain):
         self.local_padding_size = local_padding_size
 
     def __call__(
-            self,
-            coarse: np.ndarray,
-            fine: Optional[np.ndarray],
-            encoded_coarse: np.ndarray,
-            encoded_fine: np.ndarray,
-            local: Optional[np.ndarray],
-            silence: np.ndarray,
-            speaker_num: Optional[np.ndarray] = None,
+        self,
+        coarse: np.ndarray,
+        fine: Optional[np.ndarray],
+        encoded_coarse: np.ndarray,
+        encoded_fine: np.ndarray,
+        local: Optional[np.ndarray],
+        silence: np.ndarray,
+        speaker_num: Optional[np.ndarray] = None,
     ):
         assert fine is None
 
@@ -66,26 +63,38 @@ class Model(Chain):
         losses = dict()
 
         target_coarse = encoded_coarse[:, 1:]
-        nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce='no')
+        nll_coarse = F.softmax_cross_entropy(out_c_array, target_coarse, reduce="no")
 
         if self.loss_config.eliminate_silence:
             nll_coarse = nll_coarse[~silence]
-        losses['nll_coarse'] = F.mean(nll_coarse) if self.loss_config.mean_silence else F.sum(nll_coarse) / silence.size
+        losses["nll_coarse"] = (
+            F.mean(nll_coarse)
+            if self.loss_config.mean_silence
+            else F.sum(nll_coarse) / silence.size
+        )
 
         loss = nll_coarse
 
         if not self.loss_config.disable_fine:
             target_fine = encoded_fine[:, 1:]
-            nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce='no')
+            nll_fine = F.softmax_cross_entropy(out_f_array, target_fine, reduce="no")
 
             if self.loss_config.eliminate_silence:
                 nll_fine = nll_fine[~silence]
-            losses['nll_fine'] = F.mean(nll_fine) if self.loss_config.mean_silence else F.sum(nll_fine) / silence.size
+            losses["nll_fine"] = (
+                F.mean(nll_fine)
+                if self.loss_config.mean_silence
+                else F.sum(nll_fine) / silence.size
+            )
 
             loss += nll_fine
 
-        loss = F.mean(loss) if self.loss_config.mean_silence else F.sum(loss) / silence.size
-        losses['loss'] = loss
+        loss = (
+            F.mean(loss)
+            if self.loss_config.mean_silence
+            else F.sum(loss) / silence.size
+        )
+        losses["loss"] = loss
 
         if not chainer.config.train:
             losses = {key: (l, len(coarse)) for key, l in losses.items()}  # add weight

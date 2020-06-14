@@ -5,21 +5,21 @@ from typing import List, Optional
 import chainer
 import cupy as cp
 import numpy as np
+import yukarin_autoreg_cpp
 from acoustic_feature_extractor.data.wave import Wave
 from chainer import cuda
 
-import yukarin_autoreg_cpp
 from yukarin_autoreg.config import Config, ModelConfig
-from yukarin_autoreg.data import decode_single, decode_mulaw, encode_single
+from yukarin_autoreg.data import decode_mulaw, decode_single, encode_single
 from yukarin_autoreg.model import create_predictor
 from yukarin_autoreg.network.fast_forward import get_fast_forward_params
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 
 
 class SamplingPolicy(str, Enum):
-    random = 'random'
-    # maximum = 'maximum'
-    # mix = 'mix'
+    random = "random"
+    # maximum = "maximum"
+    # mix = "mix"
 
 
 def to_numpy(a):
@@ -32,10 +32,7 @@ def to_numpy(a):
 
 class Generator(object):
     def __init__(
-            self,
-            config: Config,
-            model: WaveRNN,
-            max_batch_size: int = 10,
+        self, config: Config, model: WaveRNN, max_batch_size: int = 10,
     ) -> None:
         self.config = config
         self.model = model
@@ -48,7 +45,11 @@ class Generator(object):
 
         # setup cpp inference
         params = get_fast_forward_params(self.model)
-        local_size = config.model.conditioning_size * 2 if config.model.conditioning_size is not None else 0
+        local_size = (
+            config.model.conditioning_size * 2
+            if config.model.conditioning_size is not None
+            else 0
+        )
         yukarin_autoreg_cpp.initialize(
             graph_length=1000,
             max_batch_size=max_batch_size,
@@ -57,22 +58,20 @@ class Generator(object):
             embedding_size=config.model.embedding_size,
             linear_hidden_size=config.model.linear_hidden_size,
             output_size=2 ** config.model.bit_size,
-            x_embedder_W=to_numpy(params['x_embedder_W']),
-            gru_xw=to_numpy(params['gru_xw']),
-            gru_xb=to_numpy(params['gru_xb']),
-            gru_hw=to_numpy(params['gru_hw']),
-            gru_hb=to_numpy(params['gru_hb']),
-            O1_W=to_numpy(params['O1_W']),
-            O1_b=to_numpy(params['O1_b']),
-            O2_W=to_numpy(params['O2_W']),
-            O2_b=to_numpy(params['O2_b']),
+            x_embedder_W=to_numpy(params["x_embedder_W"]),
+            gru_xw=to_numpy(params["gru_xw"]),
+            gru_xb=to_numpy(params["gru_xb"]),
+            gru_hw=to_numpy(params["gru_hw"]),
+            gru_hb=to_numpy(params["gru_hb"]),
+            O1_W=to_numpy(params["O1_W"]),
+            O1_b=to_numpy(params["O1_b"]),
+            O2_W=to_numpy(params["O2_W"]),
+            O2_b=to_numpy(params["O2_b"]),
         )
 
     @staticmethod
     def load_model(
-            model_config: ModelConfig,
-            model_path: Path,
-            gpu: int = None,
+        model_config: ModelConfig, model_path: Path, gpu: int = None,
     ):
         predictor = create_predictor(model_config)
         chainer.serializers.load_npz(str(model_path), predictor)
@@ -96,14 +95,14 @@ class Generator(object):
         return self.model.xp
 
     def generate(
-            self,
-            time_length: Optional[float],
-            sampling_policy: SamplingPolicy,
-            num_generate: int,
-            coarse=None,
-            local_array: np.ndarray = None,
-            speaker_nums: List[int] = None,
-            hidden_coarse=None,
+        self,
+        time_length: Optional[float],
+        sampling_policy: SamplingPolicy,
+        num_generate: int,
+        coarse=None,
+        local_array: np.ndarray = None,
+        speaker_nums: List[int] = None,
+        hidden_coarse=None,
     ):
         assert num_generate <= self.max_batch_size
         assert coarse is None or len(coarse) == num_generate
@@ -121,14 +120,20 @@ class Generator(object):
 
         if speaker_nums is not None:
             speaker_nums = self.xp.asarray(speaker_nums).reshape((-1,))
-            with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+            with chainer.using_config("train", False), chainer.using_config(
+                "enable_backprop", False
+            ):
                 s_one = self.model.forward_speaker(speaker_nums).data
         else:
             s_one = None
 
         if self.model.with_local:
-            with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
-                local_array = self.model.forward_encode(l_array=local_array, s_one=s_one).data
+            with chainer.using_config("train", False), chainer.using_config(
+                "enable_backprop", False
+            ):
+                local_array = self.model.forward_encode(
+                    l_array=local_array, s_one=s_one
+                ).data
 
         if coarse is None:
             c = self.xp.zeros([num_generate], dtype=np.float32)
@@ -154,7 +159,4 @@ class Generator(object):
         if self.mulaw:
             wave = decode_mulaw(wave, mu=2 ** self.single_bit)
 
-        return [
-            Wave(wave=w_one, sampling_rate=self.sampling_rate)
-            for w_one in wave
-        ]
+        return [Wave(wave=w_one, sampling_rate=self.sampling_rate) for w_one in wave]

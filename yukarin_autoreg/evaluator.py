@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Optional
 
 import chainer
-import numpy
 import numpy as np
 from acoustic_feature_extractor.data.spectrogram import to_melcepstrum
 from acoustic_feature_extractor.data.wave import Wave
@@ -10,20 +9,20 @@ from chainer import Chain
 
 from yukarin_autoreg.generator import Generator, SamplingPolicy
 
-_logdb_const = 10.0 / numpy.log(10.0) * numpy.sqrt(2.0)
+_logdb_const = 10.0 / np.log(10.0) * np.sqrt(2.0)
 
 
-def _mcd(x: numpy.ndarray, y: numpy.ndarray) -> float:
+def _mcd(x: np.ndarray, y: np.ndarray) -> float:
     z = x - y
-    r = numpy.sqrt((z * z).sum(axis=1)).mean()
+    r = np.sqrt((z * z).sum(axis=1)).mean()
     return _logdb_const * r
 
 
 def calc_mcd(
-        path1: Optional[Path] = None,
-        path2: Optional[Path] = None,
-        wave1: Optional[Wave] = None,
-        wave2: Optional[Wave] = None,
+    path1: Optional[Path] = None,
+    path2: Optional[Path] = None,
+    wave1: Optional[Wave] = None,
+    wave2: Optional[Wave] = None,
 ):
     wave1 = Wave.load(path1) if wave1 is None else wave1
     wave2 = Wave.load(path2) if wave2 is None else wave2
@@ -56,11 +55,11 @@ def calc_mcd(
 
 class GenerateEvaluator(Chain):
     def __init__(
-            self,
-            generator: Generator,
-            time_length: float,
-            local_padding_time_length: float,
-            sampling_policy: SamplingPolicy = SamplingPolicy.random,
+        self,
+        generator: Generator,
+        time_length: float,
+        local_padding_time_length: float,
+        sampling_policy: SamplingPolicy = SamplingPolicy.random,
     ) -> None:
         super().__init__()
         self.generator = generator
@@ -69,10 +68,10 @@ class GenerateEvaluator(Chain):
         self.sampling_policy = sampling_policy
 
     def __call__(
-            self,
-            wave: np.ndarray,
-            local: Optional[np.ndarray],
-            speaker_num: Optional[np.ndarray] = None,
+        self,
+        wave: np.ndarray,
+        local: Optional[np.ndarray],
+        speaker_num: Optional[np.ndarray] = None,
     ):
         batchsize = len(wave)
         wave = chainer.cuda.to_cpu(wave)
@@ -96,7 +95,7 @@ class GenerateEvaluator(Chain):
             mcd = calc_mcd(wave1=wi, wave2=wo)
             mcd_list.append(mcd)
 
-        scores = {'mcd': (self.generator.xp.asarray(mcd_list).mean(), batchsize)}
+        scores = {"mcd": (self.generator.xp.asarray(mcd_list).mean(), batchsize)}
 
         chainer.report(scores, self)
         return scores

@@ -1,10 +1,4 @@
-from typing import Optional
-
-import librosa
-import numpy
 import numpy as np
-import pysptk
-import scipy.signal
 
 
 def encode_16bit(wave: np.ndarray):
@@ -26,12 +20,12 @@ def encode_single(wave: np.ndarray, bit: int = 8):
 
 def decode_16bit(coarse, fine):
     signal = (coarse * 256 + fine) / (2 ** 16 - 1) * 2 - 1
-    return signal.astype(np.float32) if hasattr(signal, 'astype') else signal
+    return signal.astype(np.float32) if hasattr(signal, "astype") else signal
 
 
 def decode_single(coarse, bit: int = 8):
     signal = coarse / (2 ** bit - 1) * 2 - 1
-    return signal.astype(np.float32) if hasattr(signal, 'astype') else signal
+    return signal.astype(np.float32) if hasattr(signal, "astype") else signal
 
 
 def encode_mulaw(x: np.ndarray, mu: int):

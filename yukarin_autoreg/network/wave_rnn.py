@@ -1,13 +1,17 @@
-from typing import Union, Optional
+from typing import Optional, Union
 
 import chainer
 import chainer.links as L
 import numpy as np
-from chainer import functions as F, Initializer
+from chainer import Initializer
+from chainer import functions as F
 from chainer.links import EmbedID
 from chainer.links.rnn.n_step_rnn import NStepRNNBase
 
-from yukarin_autoreg.utility.chainer_network_utility import ModifiedNStepBiGRU, ModifiedNStepGRU
+from yukarin_autoreg.utility.chainer_network_utility import (
+    ModifiedNStepBiGRU,
+    ModifiedNStepGRU,
+)
 
 ArrayLike = Union[np.ndarray, chainer.Variable]
 
@@ -49,19 +53,19 @@ def _call_1step(net: NStepRNNBase, hidden: ArrayLike, input: ArrayLike):
 
 class WaveRNN(chainer.Chain):
     def __init__(
-            self,
-            dual_softmax: bool,
-            bit_size: int,
-            conditioning_size: int,
-            embedding_size: int,
-            hidden_size: int,
-            linear_hidden_size: int,
-            local_size: int,
-            local_scale: int,
-            local_layer_num: int,
-            speaker_size: int,
-            speaker_embedding_size: int,
-            weight_initializer: Optional[Initializer] = None,
+        self,
+        dual_softmax: bool,
+        bit_size: int,
+        conditioning_size: int,
+        embedding_size: int,
+        hidden_size: int,
+        linear_hidden_size: int,
+        local_size: int,
+        local_scale: int,
+        local_layer_num: int,
+        speaker_size: int,
+        speaker_embedding_size: int,
+        weight_initializer: Optional[Initializer] = None,
     ) -> None:
         super().__init__()
         assert not dual_softmax
@@ -72,24 +76,29 @@ class WaveRNN(chainer.Chain):
         self.local_scale = local_scale
         self.speaker_size = speaker_size
         with self.init_scope():
-            self.speaker_embedder = EmbedID(
-                speaker_size,
-                speaker_embedding_size,
-                initialW=weight_initializer,
-            ) if self.with_speaker else None
+            self.speaker_embedder = (
+                EmbedID(
+                    speaker_size, speaker_embedding_size, initialW=weight_initializer,
+                )
+                if self.with_speaker
+                else None
+            )
 
-            self.local_gru = ModifiedNStepBiGRU(
-                n_layers=local_layer_num,
-                in_size=local_size + (speaker_embedding_size if self.with_speaker else 0),
-                out_size=conditioning_size,
-                dropout=0,
-                initialW=weight_initializer,
-            ) if self.with_local else None
+            self.local_gru = (
+                ModifiedNStepBiGRU(
+                    n_layers=local_layer_num,
+                    in_size=local_size
+                    + (speaker_embedding_size if self.with_speaker else 0),
+                    out_size=conditioning_size,
+                    dropout=0,
+                    initialW=weight_initializer,
+                )
+                if self.with_local
+                else None
+            )
 
             self.x_embedder = EmbedID(
-                in_size=self.bins,
-                out_size=embedding_size,
-                initialW=weight_initializer,
+                in_size=self.bins, out_size=embedding_size, initialW=weight_initializer,
             )
 
             in_size = embedding_size + (2 * conditioning_size if self.with_local else 0)
@@ -100,8 +109,12 @@ class WaveRNN(chainer.Chain):
                 dropout=0,
                 initialW=weight_initializer,
             )
-            self.O1 = L.Linear(hidden_size, linear_hidden_size, initialW=weight_initializer)
-            self.O2 = L.Linear(linear_hidden_size, self.bins, initialW=weight_initializer)
+            self.O1 = L.Linear(
+                hidden_size, linear_hidden_size, initialW=weight_initializer
+            )
+            self.O2 = L.Linear(
+                linear_hidden_size, self.bins, initialW=weight_initializer
+            )
 
     @property
     def bins(self):
@@ -116,12 +129,12 @@ class WaveRNN(chainer.Chain):
         return self.local_size > 0 or self.with_speaker
 
     def __call__(
-            self,
-            x_array: ArrayLike,
-            l_array: ArrayLike,
-            s_one: Optional[ArrayLike] = None,
-            local_padding_size: int = 0,
-            hidden: Optional[ArrayLike] = None,
+        self,
+        x_array: ArrayLike,
+        l_array: ArrayLike,
+        s_one: Optional[ArrayLike] = None,
+        local_padding_size: int = 0,
+        hidden: Optional[ArrayLike] = None,
     ):
         """
         x: wave
@@ -136,19 +149,23 @@ class WaveRNN(chainer.Chain):
             out_x_array: float (batch_size, ?, N)
             hidden: float (batch_size, hidden_size)
         """
-        assert l_array.shape[2] == self.local_size, f'{l_array.shape[2]} {self.local_size}'
+        assert (
+            l_array.shape[2] == self.local_size
+        ), f"{l_array.shape[2]} {self.local_size}"
 
         if self.with_speaker:
             s_one = self.forward_speaker(s_one)
 
-        l_array = self.forward_encode(l_array=l_array, s_one=s_one)  # (batch_size, N + pad, ?)
+        l_array = self.forward_encode(
+            l_array=l_array, s_one=s_one
+        )  # (batch_size, N + pad, ?)
         if local_padding_size > 0:
-            l_array = l_array[:, local_padding_size:-local_padding_size]  # (batch_size, N, ?)
+            l_array = l_array[
+                :, local_padding_size:-local_padding_size
+            ]  # (batch_size, N, ?)
 
         out_x_array, hidden = self.forward_rnn(
-            x_array=x_array[:, :-1],
-            l_array=l_array[:, 1:],
-            hidden=hidden,
+            x_array=x_array[:, :-1], l_array=l_array[:, 1:], hidden=hidden,
         )
         return out_x_array, hidden
 
@@ -162,9 +179,7 @@ class WaveRNN(chainer.Chain):
         return s_one
 
     def forward_encode(
-            self,
-            l_array: ArrayLike,
-            s_one: Optional[ArrayLike] = None,
+        self, l_array: ArrayLike, s_one: Optional[ArrayLike] = None,
     ):
         """
         :param l_array: float (batch_size, lN, ?)
@@ -186,15 +201,17 @@ class WaveRNN(chainer.Chain):
         l_array = F.stack(l_array, axis=0)
 
         l_array = F.expand_dims(l_array, axis=1)  # shape: (batch_size, 1, lN, ?)
-        l_array = F.unpooling_2d(l_array, ksize=(self.local_scale, 1), stride=(self.local_scale, 1), cover_all=False)
+        l_array = F.unpooling_2d(
+            l_array,
+            ksize=(self.local_scale, 1),
+            stride=(self.local_scale, 1),
+            cover_all=False,
+        )
         l_array = F.squeeze(l_array, axis=1)  # shape: (batch_size, N, ?)
         return l_array
 
     def forward_rnn(
-            self,
-            x_array: ArrayLike,
-            l_array: ArrayLike,
-            hidden: ArrayLike = None,
+        self, x_array: ArrayLike, l_array: ArrayLike, hidden: ArrayLike = None,
     ):
         """
         :param x_array: int (batch_size, N)
@@ -204,31 +221,38 @@ class WaveRNN(chainer.Chain):
             out_x_array: float (batch_size, ?, N)
             hidden: float (batch_size, hidden_size)
         """
-        assert x_array.shape == l_array.shape[:2], f'{x_array.shape}, {l_array.shape[:2]}'
+        assert (
+            x_array.shape == l_array.shape[:2]
+        ), f"{x_array.shape}, {l_array.shape[:2]}"
 
         batch_size = x_array.shape[0]
         length = x_array.shape[1]  # N
 
         x_array = x_array.reshape([batch_size * length, 1])  # (batchsize * N, 1)
-        x_array = self.x_embedder(x_array).reshape([batch_size, length, -1])  # (batch_size, N, ?)
+        x_array = self.x_embedder(x_array).reshape(
+            [batch_size, length, -1]
+        )  # (batch_size, N, ?)
 
         xl_array = F.concat((x_array, l_array), axis=2)  # (batch_size, N, ?)
 
-        out_hidden = _call_1layer(self.gru, hidden, xl_array)  # (batch_size, N, hidden_size)
+        out_hidden = _call_1layer(
+            self.gru, hidden, xl_array
+        )  # (batch_size, N, hidden_size)
         new_hidden = out_hidden[:, -1, :]
 
-        out_hidden = F.reshape(out_hidden, shape=(batch_size * length, -1))  # (batch_size * N, ?)
+        out_hidden = F.reshape(
+            out_hidden, shape=(batch_size * length, -1)
+        )  # (batch_size * N, ?)
         out_x_array = self.O2(F.relu(self.O1(out_hidden)))  # (batch_size * N, ?)
-        out_x_array = F.reshape(out_x_array, shape=(batch_size, length, -1))  # (batch_size, N, ?)
+        out_x_array = F.reshape(
+            out_x_array, shape=(batch_size, length, -1)
+        )  # (batch_size, N, ?)
         out_x_array = F.transpose(out_x_array, axes=(0, 2, 1))  # (batch_size, ?, N)
 
         return out_x_array, new_hidden
 
     def forward_one(
-            self,
-            prev_x: ArrayLike,
-            prev_l: ArrayLike,
-            hidden: ArrayLike = None,
+        self, prev_x: ArrayLike, prev_l: ArrayLike, hidden: ArrayLike = None,
     ):
         """
         :param prev_x: int (batch_size, )
@@ -240,14 +264,14 @@ class WaveRNN(chainer.Chain):
         """
         batch_size = prev_x.shape[0]
 
-        prev_x = self.x_embedder(prev_x[:, np.newaxis]).reshape([batch_size, -1])  # (batch_size, ?)
+        prev_x = self.x_embedder(prev_x[:, np.newaxis]).reshape(
+            [batch_size, -1]
+        )  # (batch_size, ?)
 
         prev_xl = F.concat((prev_x, prev_l), axis=1)  # (batch_size, ?)
 
         new_hidden = _call_1step(
-            self.gru,
-            hidden,
-            prev_xl,
+            self.gru, hidden, prev_xl,
         )  # (batch_size, single_hidden_size)
 
         out_x = self.O2(F.relu(self.O1(new_hidden)))  # (batch_size, ?)
@@ -263,5 +287,7 @@ class WaveRNN(chainer.Chain):
             prob = F.softmax(dist, axis=1).data
             cumsum = xp.cumsum(prob, axis=1)
             rand = xp.random.random(cumsum.shape[0], dtype=xp.float32) * cumsum[:, -1]
-            sampled = xp.where(cumsum > rand[:, xp.newaxis], cumsum, xp.inf).argmin(axis=1)
+            sampled = xp.where(cumsum > rand[:, xp.newaxis], cumsum, xp.inf).argmin(
+                axis=1
+            )
         return sampled

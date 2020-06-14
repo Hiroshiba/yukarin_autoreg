@@ -89,22 +89,22 @@ def gru_element_wise(hidden, W_r_x, W_z_x, W_x, U_r_h, U_z_h, U_x):
 
 
 def fast_forward_one(
-        prev_x: cp.ndarray,
-        prev_l: cp.ndarray,
-        hidden: cp.ndarray,
-        x_embedder_W: cp.ndarray,
-        gru_xw: cp.ndarray,
-        gru_hw: cp.ndarray,
-        gru_xb: cp.ndarray,
-        gru_hb: cp.ndarray,
-        O1_W: cp.ndarray,
-        O1_b: cp.ndarray,
-        O2_W: cp.ndarray,
-        O2_b: cp.ndarray,
-        w_gru_x: cp.ndarray,
-        w_gru_h: cp.ndarray,
-        w_out_x1: cp.ndarray,
-        w_out_x2: cp.ndarray,
+    prev_x: cp.ndarray,
+    prev_l: cp.ndarray,
+    hidden: cp.ndarray,
+    x_embedder_W: cp.ndarray,
+    gru_xw: cp.ndarray,
+    gru_hw: cp.ndarray,
+    gru_xb: cp.ndarray,
+    gru_hb: cp.ndarray,
+    O1_W: cp.ndarray,
+    O1_b: cp.ndarray,
+    O2_W: cp.ndarray,
+    O2_b: cp.ndarray,
+    w_gru_x: cp.ndarray,
+    w_gru_h: cp.ndarray,
+    w_out_x1: cp.ndarray,
+    w_out_x2: cp.ndarray,
 ):
     prev_xl = cp.concatenate((x_embedder_W[prev_x], prev_l), axis=1)  # (batch_size, ?)
 
@@ -119,8 +119,8 @@ def fast_forward_one(
     gru_h += gru_hb
 
     size = gru_x.shape[1] // 3
-    W_r_x, W_z_x, W_x = gru_x[:, :size], gru_x[:, size:size * 2], gru_x[:, size * 2:]
-    U_r_h, U_z_h, U_x = gru_h[:, :size], gru_h[:, size:size * 2], gru_h[:, size * 2:]
+    W_r_x, W_z_x, W_x = gru_x[:, :size], gru_x[:, size : size * 2], gru_x[:, size * 2 :]
+    U_r_h, U_z_h, U_x = gru_h[:, :size], gru_h[:, size : size * 2], gru_h[:, size * 2 :]
     new_hidden = gru_element_wise(hidden, W_r_x, W_z_x, W_x, U_r_h, U_z_h, U_x)
 
     # out_x = new_hidden.dot(O1_W) + O1_b
@@ -143,19 +143,19 @@ def _support_choice(dist, rand):
 
 
 def fast_generate(
-        length: int,
-        x: cp.ndarray,
-        l_array: cp.ndarray,
-        h: cp.ndarray,
-        x_embedder_W: cp.ndarray,
-        gru_xw: cp.ndarray,
-        gru_hw: cp.ndarray,
-        gru_xb: cp.ndarray,
-        gru_hb: cp.ndarray,
-        O1_W: cp.ndarray,
-        O1_b: cp.ndarray,
-        O2_W: cp.ndarray,
-        O2_b: cp.ndarray,
+    length: int,
+    x: cp.ndarray,
+    l_array: cp.ndarray,
+    h: cp.ndarray,
+    x_embedder_W: cp.ndarray,
+    gru_xw: cp.ndarray,
+    gru_hw: cp.ndarray,
+    gru_xb: cp.ndarray,
+    gru_hb: cp.ndarray,
+    O1_W: cp.ndarray,
+    O1_b: cp.ndarray,
+    O2_W: cp.ndarray,
+    O2_b: cp.ndarray,
 ):
     batchsize = len(x)
     w_gru_x = cp.empty((batchsize, len(gru_xb)), dtype=h.dtype)
@@ -164,7 +164,7 @@ def fast_generate(
     w_out_x2 = cp.empty((batchsize, len(O2_b)), dtype=h.dtype)
 
     output = []
-    for i in tqdm(range(length), desc='fast_generate'):
+    for i in tqdm(range(length), desc="fast_generate"):
         dist, h = fast_forward_one(
             prev_x=x,
             prev_l=l_array[:, i],
@@ -185,7 +185,9 @@ def fast_generate(
         )
 
         # softmax
-        dist = chainer_cuda.cudnn.softmax_forward(dist, 1, chainer_cuda.libcudnn.CUDNN_SOFTMAX_ACCURATE)
+        dist = chainer_cuda.cudnn.softmax_forward(
+            dist, 1, chainer_cuda.libcudnn.CUDNN_SOFTMAX_ACCURATE
+        )
 
         # sampling
         random = cp.random.gumbel(size=(batchsize, len(O2_b)), dtype=h.dtype)

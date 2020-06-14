@@ -4,7 +4,7 @@ from functools import partial
 from glob import glob
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Tuple, Iterable
+from typing import Iterable, Tuple
 
 import librosa
 import numpy as np
@@ -15,12 +15,11 @@ from tqdm import tqdm
 
 
 def _sort_path(paths: Iterable[Path]):
-    return sorted(paths, key=lambda p: tuple(map(int, re.findall(r'(\d+)', str(p)))))
+    return sorted(paths, key=lambda p: tuple(map(int, re.findall(r"(\d+)", str(p)))))
 
 
 def process(
-        input_paths: Tuple[Path, Path],
-        output_dir: Path,
+    input_paths: Tuple[Path, Path], output_dir: Path,
 ):
     input_wave, input_f0 = input_paths
 
@@ -40,14 +39,12 @@ def process(
 
     y = pyworld.synthesize(f0, sp, ap, sr)
 
-    out = output_dir / f'{input_f0.stem}.wav'
+    out = output_dir / f"{input_f0.stem}.wav"
     librosa.output.write_wav(out, y.astype(np.float32), sr)
 
 
 def autotune(
-        input_wave_glob: Path,
-        input_f0_glob: Path,
-        output_dir: Path,
+    input_wave_glob: Path, input_f0_glob: Path, output_dir: Path,
 ):
     output_dir.mkdir(exist_ok=True)
 
@@ -57,19 +54,13 @@ def autotune(
 
     input_paths = list(zip(input_waves, input_f0s))
 
-    it = Pool().imap_unordered(
-        partial(
-            process,
-            output_dir=output_dir,
-        ),
-        input_paths
-    )
-    list(tqdm(it, total=len(input_paths), desc='autotune'))
+    it = Pool().imap_unordered(partial(process, output_dir=output_dir,), input_paths)
+    list(tqdm(it, total=len(input_paths), desc="autotune"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_wave_glob', '-iwg', type=Path)
-    parser.add_argument('--input_f0_glob', '-ifg', type=Path)
-    parser.add_argument('--output_dir', '-o', type=Path)
+    parser.add_argument("--input_wave_glob", "-iwg", type=Path)
+    parser.add_argument("--input_f0_glob", "-ifg", type=Path)
+    parser.add_argument("--output_dir", "-o", type=Path)
     autotune(**vars(parser.parse_args()))

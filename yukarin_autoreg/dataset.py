@@ -1,7 +1,7 @@
 import glob
 import json
 from pathlib import Path
-from typing import List, NamedTuple, Union, Dict
+from typing import Dict, List, NamedTuple, Union
 
 import numpy as np
 from acoustic_feature_extractor.data.sampling_data import SamplingData
@@ -10,7 +10,12 @@ from chainer.dataset import DatasetMixin
 from chainer.datasets import ConcatenatedDataset
 
 from yukarin_autoreg.config import DatasetConfig
-from yukarin_autoreg.data import encode_16bit, encode_single, decode_single, encode_mulaw
+from yukarin_autoreg.data import (
+    decode_single,
+    encode_16bit,
+    encode_mulaw,
+    encode_single,
+)
 
 
 class Input(NamedTuple):
@@ -34,12 +39,12 @@ class LazyInput(NamedTuple):
 
 class BaseWaveDataset(DatasetMixin):
     def __init__(
-            self,
-            sampling_length: int,
-            to_double: bool,
-            bit: int,
-            mulaw: bool,
-            local_padding_size: int,
+        self,
+        sampling_length: int,
+        to_double: bool,
+        bit: int,
+        mulaw: bool,
+        local_padding_size: int,
     ) -> None:
         self.sampling_length = sampling_length
         self.to_double = to_double
@@ -49,12 +54,12 @@ class BaseWaveDataset(DatasetMixin):
 
     @staticmethod
     def extract_input(
-            sampling_length: int,
-            wave_data: Wave,
-            silence_data: SamplingData,
-            local_data: SamplingData,
-            local_padding_size: int,
-            padding_value=0,
+        sampling_length: int,
+        wave_data: Wave,
+        silence_data: SamplingData,
+        local_data: SamplingData,
+        local_padding_size: int,
+        padding_value=0,
     ):
         """
         :return:
@@ -69,7 +74,9 @@ class BaseWaveDataset(DatasetMixin):
         l_scale = int(sr // local_data.rate)
 
         length = len(local_data.array) * l_scale
-        assert abs(length - len(wave_data.wave)) < l_scale * 4, f'{abs(length - len(wave_data.wave))} {l_scale}'
+        assert (
+            abs(length - len(wave_data.wave)) < l_scale * 4
+        ), f"{abs(length - len(wave_data.wave))} {l_scale}"
 
         assert local_padding_size % l_scale == 0
         l_pad = local_padding_size // l_scale
@@ -85,9 +92,9 @@ class BaseWaveDataset(DatasetMixin):
             if not silence.all():
                 break
         else:
-            raise Exception('cannot pick not silence data')
+            raise Exception("cannot pick not silence data")
 
-        wave = wave_data.wave[offset:offset + sl]
+        wave = wave_data.wave[offset : offset + sl]
 
         # local
         l_start, l_end = l_offset - l_pad, l_offset + l_sl + l_pad
@@ -142,11 +149,11 @@ class BaseWaveDataset(DatasetMixin):
         )
 
     def make_input(
-            self,
-            wave_data: Wave,
-            silence_data: SamplingData,
-            local_data: SamplingData,
-            gaussian_noise_sigma: float,
+        self,
+        wave_data: Wave,
+        silence_data: SamplingData,
+        local_data: SamplingData,
+        gaussian_noise_sigma: float,
     ):
         wave, silence, local = self.extract_input(
             self.sampling_length,
@@ -162,14 +169,14 @@ class BaseWaveDataset(DatasetMixin):
 
 class WavesDataset(BaseWaveDataset):
     def __init__(
-            self,
-            inputs: List[Union[Input, LazyInput]],
-            sampling_length: int,
-            to_double: bool,
-            bit: int,
-            mulaw: bool,
-            local_padding_size: int,
-            gaussian_noise_sigma: float,
+        self,
+        inputs: List[Union[Input, LazyInput]],
+        sampling_length: int,
+        to_double: bool,
+        bit: int,
+        mulaw: bool,
+        local_padding_size: int,
+        gaussian_noise_sigma: float,
     ) -> None:
         super().__init__(
             sampling_length=sampling_length,
@@ -199,10 +206,10 @@ class WavesDataset(BaseWaveDataset):
 
 class NonEncodeWavesDataset(DatasetMixin):
     def __init__(
-            self,
-            inputs: List[Union[Input, LazyInput]],
-            time_length: float,
-            local_padding_time_length: float,
+        self,
+        inputs: List[Union[Input, LazyInput]],
+        time_length: float,
+        local_padding_time_length: float,
     ) -> None:
         self.inputs = inputs
         self.time_length = time_length
@@ -217,7 +224,9 @@ class NonEncodeWavesDataset(DatasetMixin):
             input = input.generate()
 
         sampling_length = int(input.wave.sampling_rate * self.time_length)
-        local_padding_size = int(input.wave.sampling_rate * self.local_padding_time_length)
+        local_padding_size = int(
+            input.wave.sampling_rate * self.local_padding_time_length
+        )
 
         wave, silence, local = BaseWaveDataset.extract_input(
             sampling_length=sampling_length,
@@ -226,10 +235,7 @@ class NonEncodeWavesDataset(DatasetMixin):
             local_data=input.local,
             local_padding_size=local_padding_size,
         )
-        return dict(
-            wave=wave,
-            local=local,
-        )
+        return dict(wave=wave, local=local,)
 
 
 class SpeakerWavesDataset(DatasetMixin):
@@ -243,7 +249,7 @@ class SpeakerWavesDataset(DatasetMixin):
 
     def get_example(self, i):
         d = self.wave_dataset.get_example(i)
-        d['speaker_num'] = np.array(self.speaker_nums[i], dtype=np.int32)
+        d["speaker_num"] = np.array(self.speaker_nums[i], dtype=np.int32)
         return d
 
 
@@ -255,14 +261,20 @@ def create(config: DatasetConfig):
     fn_list = sorted(wave_paths.keys())
     assert len(fn_list) > 0
 
-    silence_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))}
+    silence_paths = {
+        Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))
+    }
     assert set(fn_list) == set(silence_paths.keys())
 
-    local_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_local_glob))}
+    local_paths = {
+        Path(p).stem: Path(p) for p in glob.glob(str(config.input_local_glob))
+    }
     assert set(fn_list) == set(local_paths.keys())
 
     if config.speaker_dict_path is not None:
-        fn_each_speaker: Dict[str, List[str]] = json.load(open(config.speaker_dict_path))
+        fn_each_speaker: Dict[str, List[str]] = json.load(
+            open(config.speaker_dict_path)
+        )
         assert config.num_speaker == len(fn_each_speaker)
 
         speaker_nums = {
@@ -277,7 +289,9 @@ def create(config: DatasetConfig):
     np.random.RandomState(config.seed).shuffle(fn_list)
 
     num_test = config.num_test
-    num_train = config.num_train if config.num_train is not None else len(fn_list) - num_test
+    num_train = (
+        config.num_train if config.num_train is not None else len(fn_list) - num_test
+    )
 
     trains = fn_list[num_test:][:num_train]
     tests = fn_list[:num_test]
@@ -312,8 +326,7 @@ def create(config: DatasetConfig):
 
         if speaker_nums is not None:
             dataset = SpeakerWavesDataset(
-                wave_dataset=dataset,
-                speaker_nums=[speaker_nums[fn] for fn in fns],
+                wave_dataset=dataset, speaker_nums=[speaker_nums[fn] for fn in fns],
             )
 
         if for_evaluate:
@@ -322,8 +335,10 @@ def create(config: DatasetConfig):
         return dataset
 
     return {
-        'train': Dataset(trains),
-        'test': Dataset(tests),
-        'train_test': Dataset(train_tests),
-        'test_eval': Dataset(tests, for_evaluate=True) if config.num_times_evaluate is not None else None,
+        "train": Dataset(trains),
+        "test": Dataset(tests),
+        "train_test": Dataset(train_tests),
+        "test_eval": Dataset(tests, for_evaluate=True)
+        if config.num_times_evaluate is not None
+        else None,
     }
