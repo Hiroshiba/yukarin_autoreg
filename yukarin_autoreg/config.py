@@ -56,6 +56,7 @@ class TrainConfig(NamedTuple):
     stop_iteration: int
     optimizer: Dict[str, Any]
     optimizer_gradient_clipping: float
+    ema_decay: Optional[float]
     linear_shift: Dict[str, Any]
     step_shift: Dict[str, Any]
     trained_model: Optional[Dict[str, Any]]
@@ -143,6 +144,7 @@ def create_from_dict(d: Dict[str, Any]):
             stop_iteration=d["train"]["stop_iteration"],
             optimizer=d["train"]["optimizer"],
             optimizer_gradient_clipping=d["train"]["optimizer_gradient_clipping"],
+            ema_decay=d["train"]["ema_decay"],
             linear_shift=d["train"]["linear_shift"],
             step_shift=d["train"]["step_shift"],
             trained_model=d["train"]["trained_model"],
@@ -260,6 +262,9 @@ def backward_compatible(d: Dict):
 
     if "num_speaker" not in d["dataset"]:
         d["dataset"]["num_speaker"] = d["model"]["speaker_size"]
+
+    if "ema_decay" not in d["train"]:
+        d["train"]["ema_decay"] = None
 
 
 def assert_config(config: Config):

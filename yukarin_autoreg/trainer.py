@@ -1,5 +1,4 @@
-import argparse
-from copy import copy
+from copy import copy, deepcopy
 from pathlib import Path
 from typing import Any, Dict
 
@@ -10,7 +9,7 @@ from chainer.training import ParallelUpdater, extensions
 from chainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
 
-from utility.extension_utility import TensorBoardReport
+from utility.extension_utility import ExponentialMovingAverage, TensorBoardReport
 from yukarin_autoreg.config import Config, assert_config
 from yukarin_autoreg.dataset import create as create_dataset
 from yukarin_autoreg.evaluator import GenerateEvaluator
@@ -134,6 +133,14 @@ def create_trainer(
             shift_ext._t = optimizer.t
         trainer.extend(shift_ext)
 
+    if config.train.ema_decay is not None:
+        train_predictor = predictor
+        predictor = deepcopy(predictor)
+        ext = ExponentialMovingAverage(
+            target=train_predictor, ema_target=predictor, decay=config.train.ema_decay
+        )
+        trainer.extend(ext, trigger=(1, "iteration"))
+
     ext = extensions.Evaluator(
         test_iter, model, concat_optional, device=config.train.gpu[0]
     )
@@ -164,10 +171,10 @@ def create_trainer(
         predictor, filename="main_{.updater.iteration}.npz"
     )
     trainer.extend(ext, trigger=trigger_snapshot)
-    ext = extensions.snapshot_object(
-        optimizer, filename="optimizer_{.updater.iteration}.npz"
-    )
-    trainer.extend(ext, trigger=trigger_snapshot)
+    # ext = extensions.snapshot_object(
+    #     optimizer, filename="optimizer_{.updater.iteration}.npz"
+    # )
+    # trainer.extend(ext, trigger=trigger_snapshot)
 
     trainer.extend(extensions.FailOnNonNumber(), trigger=trigger_log)
     trainer.extend(extensions.observe_lr(), trigger=trigger_log)
