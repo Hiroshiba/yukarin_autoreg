@@ -146,7 +146,9 @@ def main():
             chunked(local_paths, batchsize), chunked(speaker_nums, batchsize)
         ):
             process_wo_context(
-                generator=generator, local_paths=local_path, speaker_nums=speaker_num,
+                generator=generator,
+                local_paths=local_path,
+                speaker_nums=speaker_num if speaker_num[0] is not None else None,
             )
 
 

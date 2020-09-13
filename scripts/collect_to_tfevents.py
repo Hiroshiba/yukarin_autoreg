@@ -9,6 +9,7 @@ from typing import DefaultDict, List, Optional
 import librosa
 import numpy
 from tensorboardX import SummaryWriter
+from tqdm import tqdm
 
 from yukarin_autoreg.evaluator import calc_mcd
 
@@ -41,7 +42,7 @@ def collect_to_tfevents(
     )
 
     diffs: DefaultDict[int, List[float]] = defaultdict(list)
-    for p in sorted(input_dir.rglob("*"), key=_to_nums):
+    for p in tqdm(sorted(input_dir.rglob("*"), key=_to_nums), desc=input_dir.stem):
         if p.is_dir():
             continue
 
@@ -64,7 +65,7 @@ def collect_to_tfevents(
         # diff
         if flag_calc_diff and p.name.endswith("_woc.wav"):
             wave_id = p.name[:-8]
-            expected = next(expected_wave_dir.glob(f"{wave_id}.*"))
+            expected = expected_wave_dir.joinpath(f"{wave_id}.wav")
 
             diff = calc_mcd(path1=expected, path2=p)
             diffs[iteration].append(diff)

@@ -1,6 +1,7 @@
 numpy
 chainer
 cupy
+numba<0.50.0
 librosa<0.7.0
 pysptk
 matplotlib
