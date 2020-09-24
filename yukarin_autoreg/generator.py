@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import chainer
 import cupy as cp
@@ -8,17 +8,18 @@ import numpy as np
 import yukarin_autoreg_cpp
 from acoustic_feature_extractor.data.wave import Wave
 from chainer import cuda
+from tqdm import tqdm
 
 from yukarin_autoreg.config import Config, ModelConfig
 from yukarin_autoreg.data import decode_mulaw, decode_single, encode_single
 from yukarin_autoreg.model import create_predictor
-from yukarin_autoreg.network.fast_forward import get_fast_forward_params
+from yukarin_autoreg.network.fast_forward import fast_generate, get_fast_forward_params
 from yukarin_autoreg.network.wave_rnn import WaveRNN
 
 
 class SamplingPolicy(str, Enum):
     random = "random"
-    # maximum = "maximum"
+    maximum = "maximum"
     # mix = "mix"
 
 
@@ -96,7 +97,7 @@ class Generator(object):
 
     def generate(
         self,
-        time_length: Optional[float],
+        time_length: float,
         sampling_policy: SamplingPolicy,
         num_generate: int,
         coarse=None,
@@ -109,7 +110,6 @@ class Generator(object):
         assert local_array is None or len(local_array) == num_generate
         assert speaker_nums is None or len(speaker_nums) == num_generate
         assert hidden_coarse is None or len(hidden_coarse) == num_generate
-        assert sampling_policy == SamplingPolicy.random
 
         length = int(self.sampling_rate * time_length)
 
@@ -144,15 +144,49 @@ class Generator(object):
         if hidden_coarse is None:
             hidden_coarse = self.model.gru.init_hx(local_array)[0].data
 
-        wave = np.zeros((length, num_generate), dtype=np.int32)
-        yukarin_autoreg_cpp.inference(
-            batch_size=num_generate,
-            length=length,
-            output=wave,
-            x=to_numpy(c),
-            l_array=to_numpy(self.xp.transpose(local_array, (1, 0, 2))),
-            hidden=to_numpy(hidden_coarse),
-        )
+        if sampling_policy == SamplingPolicy.random:
+            wave = np.zeros((length, num_generate), dtype=np.int32)
+            yukarin_autoreg_cpp.inference(
+                batch_size=num_generate,
+                length=length,
+                output=wave,
+                x=to_numpy(c),
+                l_array=to_numpy(self.xp.transpose(local_array, (1, 0, 2))),
+                hidden=to_numpy(hidden_coarse),
+            )
+        else:
+            if sampling_policy == SamplingPolicy.random:
+                fast_forward_params = get_fast_forward_params(self.model)
+                w_list = fast_generate(
+                    length=length,
+                    x=c,
+                    l_array=local_array,
+                    h=hidden_coarse,
+                    **fast_forward_params,
+                )
+            else:
+                w_list = []
+                hc = hidden_coarse
+                for i in tqdm(range(length), desc="generate"):
+                    with chainer.using_config("train", False), chainer.using_config(
+                        "enable_backprop", False
+                    ):
+                        c, hc = self.model.forward_one(
+                            prev_x=c, prev_l=local_array[:, i], hidden=hc,
+                        )
+
+                    if sampling_policy == SamplingPolicy.random:
+                        is_random = True
+                    elif sampling_policy == SamplingPolicy.maximum:
+                        is_random = False
+                    else:
+                        raise ValueError(sampling_policy)
+
+                    c = self.model.sampling(c, maximum=not is_random)
+                    w_list.append(c)
+
+            wave = self.xp.stack(w_list)
+            wave = cuda.to_cpu(wave)
 
         wave = wave.T
         wave = decode_single(wave, bit=self.single_bit)

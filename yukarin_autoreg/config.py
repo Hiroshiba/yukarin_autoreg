@@ -11,7 +11,7 @@ class DatasetConfig(NamedTuple):
     input_wave_glob: str
     input_silence_glob: str
     input_local_glob: str
-    bit_size: Optional[int]
+    bit_size: int
     gaussian_noise_sigma: float
     only_coarse: bool
     mulaw: bool
@@ -29,7 +29,7 @@ class DatasetConfig(NamedTuple):
 
 class ModelConfig(NamedTuple):
     dual_softmax: bool
-    bit_size: Optional[int]
+    bit_size: int
     hidden_size: int
     local_size: int
     conditioning_size: int

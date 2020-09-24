@@ -7,7 +7,6 @@ from chainer import Initializer
 from chainer import functions as F
 from chainer.links import EmbedID
 from chainer.links.rnn.n_step_rnn import NStepRNNBase
-
 from yukarin_autoreg.utility.chainer_network_utility import (
     ModifiedNStepBiGRU,
     ModifiedNStepGRU,
@@ -284,10 +283,9 @@ class WaveRNN(chainer.Chain):
         if maximum:
             sampled = xp.argmax(F.softmax(dist, axis=1).data, axis=1)
         else:
+            dist = F.cast(dist, xp.float64)
             prob = F.softmax(dist, axis=1).data
-            cumsum = xp.cumsum(prob, axis=1)
-            rand = xp.random.random(cumsum.shape[0], dtype=xp.float32) * cumsum[:, -1]
-            sampled = xp.where(cumsum > rand[:, xp.newaxis], cumsum, xp.inf).argmin(
-                axis=1
+            sampled = xp.argmax(
+                xp.log(prob) + xp.random.gumbel(size=prob.shape), axis=1
             )
         return sampled

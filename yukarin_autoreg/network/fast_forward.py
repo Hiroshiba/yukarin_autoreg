@@ -185,12 +185,13 @@ def fast_generate(
         )
 
         # softmax
+        dist = dist.astype(cp.float64)
         dist = chainer_cuda.cudnn.softmax_forward(
             dist, 1, chainer_cuda.libcudnn.CUDNN_SOFTMAX_ACCURATE
         )
 
         # sampling
-        random = cp.random.gumbel(size=(batchsize, len(O2_b)), dtype=h.dtype)
+        random = cp.random.gumbel(size=(dist.shape))
         x = _support_choice(dist, random).argmax(axis=1)
         output.append(x)
 
