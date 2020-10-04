@@ -33,11 +33,16 @@ def to_numpy(a):
 
 class Generator(object):
     def __init__(
-        self, config: Config, model: WaveRNN, max_batch_size: int = 10,
+        self,
+        config: Config,
+        model: WaveRNN,
+        max_batch_size: int = 10,
+        use_cpp_inference: bool = True,
     ) -> None:
         self.config = config
         self.model = model
         self.max_batch_size = max_batch_size
+        self.use_cpp_inference = use_cpp_inference
 
         self.sampling_rate = config.dataset.sampling_rate
         self.mulaw = config.dataset.mulaw
@@ -45,30 +50,31 @@ class Generator(object):
         assert not self.dual_softmax
 
         # setup cpp inference
-        params = get_fast_forward_params(self.model)
-        local_size = (
-            config.model.conditioning_size * 2
-            if config.model.conditioning_size is not None
-            else 0
-        )
-        yukarin_autoreg_cpp.initialize(
-            graph_length=1000,
-            max_batch_size=max_batch_size,
-            local_size=local_size,
-            hidden_size=config.model.hidden_size,
-            embedding_size=config.model.embedding_size,
-            linear_hidden_size=config.model.linear_hidden_size,
-            output_size=2 ** config.model.bit_size,
-            x_embedder_W=to_numpy(params["x_embedder_W"]),
-            gru_xw=to_numpy(params["gru_xw"]),
-            gru_xb=to_numpy(params["gru_xb"]),
-            gru_hw=to_numpy(params["gru_hw"]),
-            gru_hb=to_numpy(params["gru_hb"]),
-            O1_W=to_numpy(params["O1_W"]),
-            O1_b=to_numpy(params["O1_b"]),
-            O2_W=to_numpy(params["O2_W"]),
-            O2_b=to_numpy(params["O2_b"]),
-        )
+        if use_cpp_inference:
+            params = get_fast_forward_params(self.model)
+            local_size = (
+                config.model.conditioning_size * 2
+                if config.model.conditioning_size is not None
+                else 0
+            )
+            yukarin_autoreg_cpp.initialize(
+                graph_length=1000,
+                max_batch_size=max_batch_size,
+                local_size=local_size,
+                hidden_size=config.model.hidden_size,
+                embedding_size=config.model.embedding_size,
+                linear_hidden_size=config.model.linear_hidden_size,
+                output_size=2 ** config.model.bit_size,
+                x_embedder_W=to_numpy(params["x_embedder_W"]),
+                gru_xw=to_numpy(params["gru_xw"]),
+                gru_xb=to_numpy(params["gru_xb"]),
+                gru_hw=to_numpy(params["gru_hw"]),
+                gru_hb=to_numpy(params["gru_hb"]),
+                O1_W=to_numpy(params["O1_W"]),
+                O1_b=to_numpy(params["O1_b"]),
+                O2_W=to_numpy(params["O2_W"]),
+                O2_b=to_numpy(params["O2_b"]),
+            )
 
     @staticmethod
     def load_model(
@@ -144,7 +150,7 @@ class Generator(object):
         if hidden_coarse is None:
             hidden_coarse = self.model.gru.init_hx(local_array)[0].data
 
-        if sampling_policy == SamplingPolicy.random:
+        if self.use_cpp_inference and sampling_policy == SamplingPolicy.random:
             wave = np.zeros((length, num_generate), dtype=np.int32)
             yukarin_autoreg_cpp.inference(
                 batch_size=num_generate,

@@ -8,9 +8,9 @@ from typing import DefaultDict, List, Optional
 
 import librosa
 import numpy
+from acoustic_feature_extractor.data.wave import Wave
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
-
 from yukarin_autoreg.evaluator import calc_mcd
 
 
@@ -67,7 +67,10 @@ def collect_to_tfevents(
             wave_id = p.name[:-8]
             expected = expected_wave_dir.joinpath(f"{wave_id}.wav")
 
-            diff = calc_mcd(path1=expected, path2=p)
+            wo = Wave.load(p)
+            wi = Wave.load(expected, sampling_rate=wo.sampling_rate)
+
+            diff = calc_mcd(wave1=wi, wave2=wo)
             diffs[iteration].append(diff)
 
     if flag_calc_diff:

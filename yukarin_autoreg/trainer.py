@@ -152,7 +152,10 @@ def create_trainer(
 
     if test_eval_iter is not None:
         generator = Generator(
-            config=config, model=predictor, max_batch_size=config.train.batchsize
+            config=config,
+            model=predictor,
+            max_batch_size=config.train.batchsize,
+            use_cpp_inference=False,
         )
         generate_evaluator = GenerateEvaluator(
             generator=generator,
