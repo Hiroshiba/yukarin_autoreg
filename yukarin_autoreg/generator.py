@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from typing import List
+from typing import Sequence
 
 import chainer
 import cupy as cp
@@ -21,6 +21,11 @@ class SamplingPolicy(str, Enum):
     random = "random"
     maximum = "maximum"
     # mix = "mix"
+
+
+class MorphingPolicy(str, Enum):
+    linear = "linear"
+    sphere = "sphere"
 
 
 def to_numpy(a):
@@ -106,16 +111,12 @@ class Generator(object):
         time_length: float,
         sampling_policy: SamplingPolicy,
         num_generate: int,
-        coarse=None,
         local_array: np.ndarray = None,
-        speaker_nums: List[int] = None,
-        hidden_coarse=None,
+        speaker_nums: Sequence[int] = None,
     ):
         assert num_generate <= self.max_batch_size
-        assert coarse is None or len(coarse) == num_generate
         assert local_array is None or len(local_array) == num_generate
         assert speaker_nums is None or len(speaker_nums) == num_generate
-        assert hidden_coarse is None or len(hidden_coarse) == num_generate
 
         length = int(self.sampling_rate * time_length)
 
@@ -133,6 +134,109 @@ class Generator(object):
         else:
             s_one = None
 
+        return self.main_forward(
+            length=length,
+            sampling_policy=sampling_policy,
+            num_generate=num_generate,
+            local_array=local_array,
+            s_one=s_one,
+        )
+
+    def morphing(
+        self,
+        time_length: float,
+        sampling_policy: SamplingPolicy,
+        morphing_policy: MorphingPolicy,
+        local_array1: np.ndarray,
+        local_array2: np.ndarray,
+        speaker_nums1: Sequence[int],
+        speaker_nums2: Sequence[int],
+        start_rates: Sequence[float],
+        stop_rates: Sequence[float],
+    ):
+        num_generate = len(local_array1)
+        assert num_generate <= self.max_batch_size
+        assert len(local_array2) == num_generate
+        assert len(speaker_nums1) == num_generate
+        assert len(speaker_nums2) == num_generate
+        assert len(start_rates) == num_generate
+        assert len(stop_rates) == num_generate
+
+        length = int(self.sampling_rate * time_length)
+        local_length = local_array1.shape[1]
+
+        local_array1 = self.xp.asarray(local_array1)
+        local_array2 = self.xp.asarray(local_array2)
+
+        speaker_nums1 = self.xp.asarray(speaker_nums1).reshape((-1,))
+        speaker_nums2 = self.xp.asarray(speaker_nums2).reshape((-1,))
+        with chainer.using_config("train", False), chainer.using_config(
+            "enable_backprop", False
+        ):
+            s_one1 = self.xp.repeat(
+                self.model.forward_speaker(speaker_nums1).data[:, None],
+                local_length,
+                axis=1,
+            )
+            s_one2 = self.xp.repeat(
+                self.model.forward_speaker(speaker_nums2).data[:, None],
+                local_length,
+                axis=1,
+            )
+
+        # morphing
+        start_rates = np.asarray(start_rates)
+        stop_rates = np.asarray(stop_rates)
+        morph_rates = self.xp.asarray(
+            np.linspace(
+                start_rates,
+                stop_rates,
+                num=local_array1.shape[1],
+                axis=1,
+                dtype=np.float32,
+            )
+        ).reshape((num_generate, local_length, 1))
+
+        local_array = local_array1 * morph_rates + local_array2 * (1 - morph_rates)
+
+        if morphing_policy == MorphingPolicy.linear:
+            s_one = s_one1 * morph_rates + s_one2 * (1 - morph_rates)
+        elif morphing_policy == MorphingPolicy.sphere:
+            omega = self.xp.arccos(
+                self.xp.sum(
+                    (s_one1 * s_one2)
+                    / (
+                        self.xp.linalg.norm(s_one1, axis=2, keepdims=True)
+                        * self.xp.linalg.norm(s_one2, axis=2, keepdims=True)
+                    ),
+                    axis=2,
+                    keepdims=True,
+                )
+            )
+            sin_omega = self.xp.sin(omega)
+            s_one = (
+                self.xp.sin(morph_rates * omega) / sin_omega * s_one1
+                + self.xp.sin((1.0 - morph_rates) * omega) / sin_omega * s_one2
+            ).astype(np.float32)
+        else:
+            raise ValueError(morphing_policy)
+
+        return self.main_forward(
+            length=length,
+            sampling_policy=sampling_policy,
+            num_generate=num_generate,
+            local_array=local_array,
+            s_one=s_one,
+        )
+
+    def main_forward(
+        self,
+        length: int,
+        sampling_policy: SamplingPolicy,
+        num_generate: int,
+        local_array: np.ndarray = None,
+        s_one: np.ndarray = None,
+    ):
         if self.model.with_local:
             with chainer.using_config("train", False), chainer.using_config(
                 "enable_backprop", False
@@ -141,14 +245,10 @@ class Generator(object):
                     l_array=local_array, s_one=s_one
                 ).data
 
-        if coarse is None:
-            c = self.xp.zeros([num_generate], dtype=np.float32)
-            c = encode_single(c, bit=self.single_bit)
-        else:
-            c = coarse
+        c = self.xp.zeros([num_generate], dtype=np.float32)
+        c = encode_single(c, bit=self.single_bit)
 
-        if hidden_coarse is None:
-            hidden_coarse = self.model.gru.init_hx(local_array)[0].data
+        hidden_coarse = self.model.gru.init_hx(local_array)[0].data
 
         if self.use_cpp_inference and sampling_policy == SamplingPolicy.random:
             wave = np.zeros((length, num_generate), dtype=np.int32)

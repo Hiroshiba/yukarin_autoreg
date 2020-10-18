@@ -182,7 +182,7 @@ class WaveRNN(chainer.Chain):
     ):
         """
         :param l_array: float (batch_size, lN, ?)
-        :param s_one: int (batch_size, ?)
+        :param s_one: float (batch_size, ?) or (batch_size, lN, ?)
         :return:
             l_array: float (batch_size, N, ?)
         """
@@ -192,8 +192,11 @@ class WaveRNN(chainer.Chain):
         length = l_array.shape[1]  # lN
 
         if self.with_speaker:
-            s_one = F.expand_dims(s_one, axis=1)  # shape: (batch_size, 1, ?)
-            s_array = F.repeat(s_one, length, axis=1)  # shape: (batch_size, lN, ?)
+            if s_one.ndim == 2:
+                s_one = F.expand_dims(s_one, axis=1)  # shape: (batch_size, 1, ?)
+                s_array = F.repeat(s_one, length, axis=1)  # shape: (batch_size, lN, ?)
+            else:
+                s_array = s_one  # shape: (batch_size, lN, ?)
             l_array = F.concat((l_array, s_array), axis=2)  # (batch_size, lN, ?)
 
         _, l_array = self.local_gru(hx=None, xs=F.separate(l_array, axis=0))

@@ -7,9 +7,9 @@ from typing import Optional, Sequence
 import numpy as np
 from acoustic_feature_extractor.data.sampling_data import SamplingData
 from more_itertools import chunked
-
 from yukarin_autoreg.config import create_from_json as create_config
 from yukarin_autoreg.dataset import SpeakerWavesDataset, WavesDataset
+from yukarin_autoreg.dataset import create as create_dataset
 from yukarin_autoreg.generator import Generator, SamplingPolicy
 from yukarin_autoreg.utility.json_utility import save_arguments
 
@@ -100,7 +100,7 @@ def main():
     )
 
     output_dir.mkdir(exist_ok=True, parents=True)
-    save_arguments(arguments, output_dir / "arguments.json")
+    save_arguments(vars(arguments), output_dir / "arguments.json")
 
     config = create_config(model_config)
     model = Generator.load_model(
@@ -113,9 +113,7 @@ def main():
     )
     generator = Generator(config=config, model=model,)
 
-    from yukarin_autoreg.dataset import create
-
-    dataset = create(config.dataset)["test"]
+    dataset = create_dataset(config.dataset)["test"]
 
     if isinstance(dataset, WavesDataset):
         inputs = dataset.inputs

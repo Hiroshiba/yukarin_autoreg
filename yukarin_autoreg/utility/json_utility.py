@@ -12,6 +12,4 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def save_arguments(arguments, path: Path):
-    json.dump(
-        vars(arguments), path.open("w"), indent=2, sort_keys=True, cls=JSONEncoder
-    )
+    json.dump(arguments, path.open("w"), indent=2, sort_keys=True, cls=JSONEncoder)
