@@ -14,12 +14,10 @@ setup(
     author="Kazuyuki Hiroshiba",
     author_email="hihokaruta@gmail.com",
     description="Become Yuduki Yukari with Auto Regression Power.",
-    license="MIT License",
     install_requires=install_requires,
     classifiers=[
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
-        "License :: OSI Approved :: MIT License",
     ],
 )
