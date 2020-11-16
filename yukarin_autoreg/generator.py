@@ -189,11 +189,7 @@ class Generator(object):
         stop_rates = np.asarray(stop_rates)
         morph_rates = self.xp.asarray(
             np.linspace(
-                start_rates,
-                stop_rates,
-                num=local_array1.shape[1],
-                axis=1,
-                dtype=np.float32,
+                start_rates, stop_rates, num=local_length, axis=1, dtype=np.float32,
             )
         ).reshape((num_generate, local_length, 1))
 
