@@ -5,7 +5,6 @@ from typing import Sequence
 import chainer
 import cupy as cp
 import numpy as np
-import yukarin_autoreg_cpp
 from acoustic_feature_extractor.data.wave import Wave
 from chainer import cuda
 from tqdm import tqdm
@@ -56,6 +55,8 @@ class Generator(object):
 
         # setup cpp inference
         if use_cpp_inference:
+            import yukarin_autoreg_cpp
+
             params = get_fast_forward_params(self.model)
             local_size = (
                 config.model.conditioning_size * 2
@@ -247,6 +248,8 @@ class Generator(object):
         hidden_coarse = self.model.gru.init_hx(local_array)[0].data
 
         if self.use_cpp_inference and sampling_policy == SamplingPolicy.random:
+            import yukarin_autoreg_cpp
+            
             wave = np.zeros((length, num_generate), dtype=np.int32)
             yukarin_autoreg_cpp.inference(
                 batch_size=num_generate,
