@@ -12,7 +12,6 @@ from optuna.integration import ChainerPruningExtension
 from optuna.pruners import PercentilePruner
 from optuna.storages import RDBStorage
 from optuna.structs import TrialPruned
-
 from yukarin_autoreg.config import Config
 from yukarin_autoreg.trainer import create_trainer
 
