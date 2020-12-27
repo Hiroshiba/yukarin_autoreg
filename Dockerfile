@@ -17,6 +17,7 @@ RUN pip install -r requirements-dev.txt
 COPY src_cython /app/src_cython
 RUN cd /app/src_cython && \
     curl https://raw.githubusercontent.com/Hiroshiba/yukarin_autoreg_cpp/cuda9.0/CppWaveRNN/CppWaveRNN.h > /app/src_cython/CppWaveRNN.h && \
+    cp libyukarin_autoreg_cpp-cuda90.so libyukarin_autoreg_cpp.so && \
     CFLAGS="-I." \
     LDFLAGS="-L." \
     python setup.py install
