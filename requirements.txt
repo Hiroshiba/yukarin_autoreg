@@ -1,8 +1,8 @@
 numpy
 chainer
 cupy
-numba<0.50.0
-librosa<0.7.0
+numba
+librosa==0.8.0
 pysptk
 matplotlib
 tqdm
@@ -12,4 +12,4 @@ parameterized
 optuna
 more_itertools
 cython
-git+https://github.com/Hiroshiba/acoustic_feature_extractor@7beb1ceb7244a997865778c3a7c730e5fc0cbe02
+git+https://github.com/Hiroshiba/acoustic_feature_extractor@7cab860d9623c34a6ce818ff87c0c14a9ed60231
