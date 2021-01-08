@@ -1,6 +1,6 @@
 numpy
-chainer
-cupy
+chainer<7.8.0
+cupy<7.8.0
 numba
 librosa==0.8.0
 pysptk
