@@ -1,4 +1,4 @@
-cdef extern from "CppWaveRNN.h":
+cdef extern from "yukarin_autoreg_cpp.h":
     void c_initialize "initialize" (
         int graph_length,
         int max_batch_size,

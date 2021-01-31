@@ -17,11 +17,7 @@ RUN pip install -r requirements-dev.txt
 # cpp
 COPY src_cython /app/src_cython
 RUN cd /app/src_cython && \
-    curl https://raw.githubusercontent.com/Hiroshiba/yukarin_autoreg_cpp/graph/CppWaveRNN/CppWaveRNN.h > /app/src_cython/CppWaveRNN.h && \
-    cp libyukarin_autoreg_cpp-cuda102.so libyukarin_autoreg_cpp.so && \
-    CFLAGS="-I." \
-    LDFLAGS="-L." \
-    python setup.py install
+    CFLAGS="-I." LDFLAGS="-L." python setup.py install
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/app/src_cython"
 
 # optuna
